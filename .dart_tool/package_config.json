@@ -33,9 +33,9 @@
     },
     {
       "name": "device_info_plus",
-      "rootUri": "file:///C:/Users/Aldahir%20Fernando/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-9.1.2",
+      "rootUri": "file:///C:/Users/Aldahir%20Fernando/AppData/Local/Pub/Cache/git/plus_plugins-dfa0e2d46a739abad6b5a455c62086225cdc6196/packages/device_info_plus/device_info_plus",
       "packageUri": "lib/",
-      "languageVersion": "2.18"
+      "languageVersion": "3.3"
     },
     {
       "name": "device_info_plus_platform_interface",
@@ -224,6 +224,12 @@
       "languageVersion": "3.0"
     },
     {
+      "name": "web",
+      "rootUri": "file:///C:/Users/Aldahir%20Fernando/AppData/Local/Pub/Cache/hosted/pub.dev/web-0.5.1",
+      "packageUri": "lib/",
+      "languageVersion": "3.3"
+    },
+    {
       "name": "webdriver",
       "rootUri": "file:///C:/Users/Aldahir%20Fernando/AppData/Local/Pub/Cache/hosted/pub.dev/webdriver-3.0.3",
       "packageUri": "lib/",
@@ -245,10 +251,10 @@
       "name": "health",
       "rootUri": "../",
       "packageUri": "lib/",
-      "languageVersion": "2.17"
+      "languageVersion": "2.15"
     }
   ],
-  "generated": "2024-03-26T12:23:54.942974Z",
+  "generated": "2024-04-01T09:58:48.933874Z",
   "generator": "pub",
   "generatorVersion": "3.3.2"
 }
