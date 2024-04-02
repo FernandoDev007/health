@@ -99,9 +99,9 @@
     },
     {
       "name": "intl",
-      "rootUri": "file:///C:/Users/Aldahir%20Fernando/AppData/Local/Pub/Cache/hosted/pub.dev/intl-0.18.1",
+      "rootUri": "file:///C:/Users/Aldahir%20Fernando/AppData/Local/Pub/Cache/hosted/pub.dev/intl-0.19.0",
       "packageUri": "lib/",
-      "languageVersion": "2.12"
+      "languageVersion": "3.0"
     },
     {
       "name": "leak_tracker",
@@ -254,7 +254,7 @@
       "languageVersion": "2.15"
     }
   ],
-  "generated": "2024-04-01T15:30:14.064524Z",
+  "generated": "2024-04-02T11:03:26.349070Z",
   "generator": "pub",
   "generatorVersion": "3.3.2"
 }
