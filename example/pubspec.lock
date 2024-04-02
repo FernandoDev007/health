@@ -53,18 +53,19 @@ packages:
     dependency: transitive
     description:
       path: "packages/device_info_plus/device_info_plus"
-      ref: fromJava17to1dot8
-      resolved-ref: dfa0e2d46a739abad6b5a455c62086225cdc6196
+      ref: HEAD
+      resolved-ref: "4bf71a50839ea432ca95942865edca98d8c85998"
       url: "https://github.com/FernandoDev007/plus_plugins.git"
     source: git
     version: "10.0.1"
   device_info_plus_platform_interface:
     dependency: transitive
     description:
-      name: device_info_plus_platform_interface
-      sha256: d3b01d5868b50ae571cd1dc6e502fc94d956b665756180f7b16ead09e836fd64
-      url: "https://pub.dev"
-    source: hosted
+      path: "packages/device_info_plus/device_info_plus_platform_interface"
+      ref: HEAD
+      resolved-ref: "4bf71a50839ea432ca95942865edca98d8c85998"
+      url: "https://github.com/FernandoDev007/plus_plugins.git"
+    source: git
     version: "7.0.0"
   fake_async:
     dependency: transitive
