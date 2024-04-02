@@ -33,13 +33,13 @@
     },
     {
       "name": "device_info_plus",
-      "rootUri": "file:///C:/Users/Aldahir%20Fernando/AppData/Local/Pub/Cache/git/plus_plugins-4bf71a50839ea432ca95942865edca98d8c85998/packages/device_info_plus/device_info_plus",
+      "rootUri": "file:///C:/Users/Aldahir%20Fernando/AppData/Local/Pub/Cache/git/plus_plugins-e81de407b65d0430aa874adaa880ae3fa7401bf0/packages/device_info_plus/device_info_plus",
       "packageUri": "lib/",
       "languageVersion": "3.3"
     },
     {
       "name": "device_info_plus_platform_interface",
-      "rootUri": "file:///C:/Users/Aldahir%20Fernando/AppData/Local/Pub/Cache/git/plus_plugins-4bf71a50839ea432ca95942865edca98d8c85998/packages/device_info_plus/device_info_plus_platform_interface",
+      "rootUri": "file:///C:/Users/Aldahir%20Fernando/AppData/Local/Pub/Cache/git/plus_plugins-e81de407b65d0430aa874adaa880ae3fa7401bf0/packages/device_info_plus/device_info_plus_platform_interface",
       "packageUri": "lib/",
       "languageVersion": "2.18"
     },
@@ -254,7 +254,7 @@
       "languageVersion": "2.15"
     }
   ],
-  "generated": "2024-04-02T13:11:09.227560Z",
+  "generated": "2024-04-02T14:37:06.211510Z",
   "generator": "pub",
   "generatorVersion": "3.3.3"
 }
