@@ -1,6 +1,6 @@
-part of health;
+part of '../health.dart';
 
-/// List of all available data types.
+/// List of all available health data types.
 enum HealthDataType {
   ACTIVE_ENERGY_BURNED,
   AUDIOGRAM,
@@ -12,7 +12,9 @@ enum HealthDataType {
   BODY_FAT_PERCENTAGE,
   BODY_MASS_INDEX,
   BODY_TEMPERATURE,
+  BODY_WATER_MASS,
   DIETARY_CARBS_CONSUMED,
+  DIETARY_CAFFEINE,
   DIETARY_ENERGY_CONSUMED,
   DIETARY_FATS_CONSUMED,
   DIETARY_PROTEIN_CONSUMED,
@@ -21,11 +23,15 @@ enum HealthDataType {
   HEART_RATE_VARIABILITY_SDNN,
   HEIGHT,
   RESTING_HEART_RATE,
+  RESPIRATORY_RATE,
+  PERIPHERAL_PERFUSION_INDEX,
   STEPS,
   WAIST_CIRCUMFERENCE,
   WALKING_HEART_RATE,
   WEIGHT,
   DISTANCE_WALKING_RUNNING,
+  DISTANCE_SWIMMING,
+  DISTANCE_CYCLING,
   FLIGHTS_CLIMBED,
   MOVE_MINUTES,
   DISTANCE_DELTA,
@@ -33,7 +39,15 @@ enum HealthDataType {
   WATER,
   SLEEP_IN_BED,
   SLEEP_ASLEEP,
+  SLEEP_ASLEEP_CORE,
+  SLEEP_ASLEEP_DEEP,
+  SLEEP_ASLEEP_REM,
   SLEEP_AWAKE,
+  SLEEP_LIGHT,
+  SLEEP_DEEP,
+  SLEEP_REM,
+  SLEEP_OUT_OF_BED,
+  SLEEP_SESSION,
   EXERCISE_TIME,
   WORKOUT,
   HEADACHE_NOT_PRESENT,
@@ -41,6 +55,7 @@ enum HealthDataType {
   HEADACHE_MODERATE,
   HEADACHE_SEVERE,
   HEADACHE_UNSPECIFIED,
+  NUTRITION,
 
   // Heart Rate events (specific to Apple Watch)
   HIGH_HEART_RATE_EVENT,
@@ -48,16 +63,20 @@ enum HealthDataType {
   IRREGULAR_HEART_RATE_EVENT,
   ELECTRODERMAL_ACTIVITY,
   ELECTROCARDIOGRAM,
+
+  // Health Connect
+  TOTAL_CALORIES_BURNED
 }
 
+/// Access types for Health Data.
 enum HealthDataAccess {
   READ,
   WRITE,
   READ_WRITE,
 }
 
-/// List of data types available on iOS
-const List<HealthDataType> _dataTypeKeysIOS = [
+/// List of data types available on iOS.
+const List<HealthDataType> dataTypeKeysIOS = [
   HealthDataType.ACTIVE_ENERGY_BURNED,
   HealthDataType.AUDIOGRAM,
   HealthDataType.BASAL_ENERGY_BURNED,
@@ -69,6 +88,7 @@ const List<HealthDataType> _dataTypeKeysIOS = [
   HealthDataType.BODY_MASS_INDEX,
   HealthDataType.BODY_TEMPERATURE,
   HealthDataType.DIETARY_CARBS_CONSUMED,
+  HealthDataType.DIETARY_CAFFEINE,
   HealthDataType.DIETARY_ENERGY_CONSUMED,
   HealthDataType.DIETARY_FATS_CONSUMED,
   HealthDataType.DIETARY_PROTEIN_CONSUMED,
@@ -81,16 +101,25 @@ const List<HealthDataType> _dataTypeKeysIOS = [
   HealthDataType.IRREGULAR_HEART_RATE_EVENT,
   HealthDataType.LOW_HEART_RATE_EVENT,
   HealthDataType.RESTING_HEART_RATE,
+  HealthDataType.RESPIRATORY_RATE,
+  HealthDataType.PERIPHERAL_PERFUSION_INDEX,
   HealthDataType.STEPS,
   HealthDataType.WAIST_CIRCUMFERENCE,
   HealthDataType.WALKING_HEART_RATE,
   HealthDataType.WEIGHT,
   HealthDataType.FLIGHTS_CLIMBED,
   HealthDataType.DISTANCE_WALKING_RUNNING,
+  HealthDataType.DISTANCE_SWIMMING,
+  HealthDataType.DISTANCE_CYCLING,
   HealthDataType.MINDFULNESS,
   HealthDataType.SLEEP_IN_BED,
   HealthDataType.SLEEP_AWAKE,
   HealthDataType.SLEEP_ASLEEP,
+  HealthDataType.SLEEP_DEEP,
+  HealthDataType.SLEEP_REM,
+  HealthDataType.SLEEP_ASLEEP_CORE,
+  HealthDataType.SLEEP_ASLEEP_DEEP,
+  HealthDataType.SLEEP_ASLEEP_REM,
   HealthDataType.WATER,
   HealthDataType.EXERCISE_TIME,
   HealthDataType.WORKOUT,
@@ -100,10 +129,11 @@ const List<HealthDataType> _dataTypeKeysIOS = [
   HealthDataType.HEADACHE_SEVERE,
   HealthDataType.HEADACHE_UNSPECIFIED,
   HealthDataType.ELECTROCARDIOGRAM,
+  HealthDataType.NUTRITION,
 ];
 
 /// List of data types available on Android
-const List<HealthDataType> _dataTypeKeysAndroid = [
+const List<HealthDataType> dataTypeKeysAndroid = [
   HealthDataType.ACTIVE_ENERGY_BURNED,
   HealthDataType.BLOOD_GLUCOSE,
   HealthDataType.BLOOD_OXYGEN,
@@ -112,6 +142,7 @@ const List<HealthDataType> _dataTypeKeysAndroid = [
   HealthDataType.BODY_FAT_PERCENTAGE,
   HealthDataType.BODY_MASS_INDEX,
   HealthDataType.BODY_TEMPERATURE,
+  HealthDataType.BODY_WATER_MASS,
   HealthDataType.HEART_RATE,
   HealthDataType.HEIGHT,
   HealthDataType.STEPS,
@@ -121,12 +152,23 @@ const List<HealthDataType> _dataTypeKeysAndroid = [
   HealthDataType.SLEEP_AWAKE,
   HealthDataType.SLEEP_ASLEEP,
   HealthDataType.SLEEP_IN_BED,
+  HealthDataType.SLEEP_DEEP,
+  HealthDataType.SLEEP_LIGHT,
+  HealthDataType.SLEEP_REM,
+  HealthDataType.SLEEP_OUT_OF_BED,
+  HealthDataType.SLEEP_SESSION,
   HealthDataType.WATER,
   HealthDataType.WORKOUT,
+  HealthDataType.RESTING_HEART_RATE,
+  HealthDataType.FLIGHTS_CLIMBED,
+  HealthDataType.BASAL_ENERGY_BURNED,
+  HealthDataType.RESPIRATORY_RATE,
+  HealthDataType.NUTRITION,
+  HealthDataType.TOTAL_CALORIES_BURNED,
 ];
 
 /// Maps a [HealthDataType] to a [HealthDataUnit].
-const Map<HealthDataType, HealthDataUnit> _dataTypeToUnit = {
+const Map<HealthDataType, HealthDataUnit> dataTypeToUnit = {
   HealthDataType.ACTIVE_ENERGY_BURNED: HealthDataUnit.KILOCALORIE,
   HealthDataType.AUDIOGRAM: HealthDataUnit.DECIBEL_HEARING_LEVEL,
   HealthDataType.BASAL_ENERGY_BURNED: HealthDataUnit.KILOCALORIE,
@@ -137,13 +179,17 @@ const Map<HealthDataType, HealthDataUnit> _dataTypeToUnit = {
   HealthDataType.BODY_FAT_PERCENTAGE: HealthDataUnit.PERCENT,
   HealthDataType.BODY_MASS_INDEX: HealthDataUnit.NO_UNIT,
   HealthDataType.BODY_TEMPERATURE: HealthDataUnit.DEGREE_CELSIUS,
+  HealthDataType.BODY_WATER_MASS: HealthDataUnit.KILOGRAM,
   HealthDataType.DIETARY_CARBS_CONSUMED: HealthDataUnit.GRAM,
+  HealthDataType.DIETARY_CAFFEINE: HealthDataUnit.GRAM,
   HealthDataType.DIETARY_ENERGY_CONSUMED: HealthDataUnit.KILOCALORIE,
   HealthDataType.DIETARY_FATS_CONSUMED: HealthDataUnit.GRAM,
   HealthDataType.DIETARY_PROTEIN_CONSUMED: HealthDataUnit.GRAM,
   HealthDataType.ELECTRODERMAL_ACTIVITY: HealthDataUnit.SIEMEN,
   HealthDataType.FORCED_EXPIRATORY_VOLUME: HealthDataUnit.LITER,
   HealthDataType.HEART_RATE: HealthDataUnit.BEATS_PER_MINUTE,
+  HealthDataType.RESPIRATORY_RATE: HealthDataUnit.RESPIRATIONS_PER_MINUTE,
+  HealthDataType.PERIPHERAL_PERFUSION_INDEX: HealthDataUnit.PERCENT,
   HealthDataType.HEIGHT: HealthDataUnit.METER,
   HealthDataType.RESTING_HEART_RATE: HealthDataUnit.BEATS_PER_MINUTE,
   HealthDataType.STEPS: HealthDataUnit.COUNT,
@@ -151,6 +197,8 @@ const Map<HealthDataType, HealthDataUnit> _dataTypeToUnit = {
   HealthDataType.WALKING_HEART_RATE: HealthDataUnit.BEATS_PER_MINUTE,
   HealthDataType.WEIGHT: HealthDataUnit.KILOGRAM,
   HealthDataType.DISTANCE_WALKING_RUNNING: HealthDataUnit.METER,
+  HealthDataType.DISTANCE_SWIMMING: HealthDataUnit.METER,
+  HealthDataType.DISTANCE_CYCLING: HealthDataUnit.METER,
   HealthDataType.FLIGHTS_CLIMBED: HealthDataUnit.COUNT,
   HealthDataType.MOVE_MINUTES: HealthDataUnit.MINUTE,
   HealthDataType.DISTANCE_DELTA: HealthDataUnit.METER,
@@ -158,7 +206,16 @@ const Map<HealthDataType, HealthDataUnit> _dataTypeToUnit = {
   HealthDataType.WATER: HealthDataUnit.LITER,
   HealthDataType.SLEEP_IN_BED: HealthDataUnit.MINUTE,
   HealthDataType.SLEEP_ASLEEP: HealthDataUnit.MINUTE,
+  HealthDataType.SLEEP_ASLEEP_CORE: HealthDataUnit.MINUTE,
+  HealthDataType.SLEEP_ASLEEP_DEEP: HealthDataUnit.MINUTE,
+  HealthDataType.SLEEP_ASLEEP_REM: HealthDataUnit.MINUTE,
   HealthDataType.SLEEP_AWAKE: HealthDataUnit.MINUTE,
+  HealthDataType.SLEEP_DEEP: HealthDataUnit.MINUTE,
+  HealthDataType.SLEEP_REM: HealthDataUnit.MINUTE,
+  HealthDataType.SLEEP_OUT_OF_BED: HealthDataUnit.MINUTE,
+  HealthDataType.SLEEP_LIGHT: HealthDataUnit.MINUTE,
+  HealthDataType.SLEEP_SESSION: HealthDataUnit.MINUTE,
+
   HealthDataType.MINDFULNESS: HealthDataUnit.MINUTE,
   HealthDataType.EXERCISE_TIME: HealthDataUnit.MINUTE,
   HealthDataType.WORKOUT: HealthDataUnit.NO_UNIT,
@@ -175,12 +232,17 @@ const Map<HealthDataType, HealthDataUnit> _dataTypeToUnit = {
   HealthDataType.IRREGULAR_HEART_RATE_EVENT: HealthDataUnit.NO_UNIT,
   HealthDataType.HEART_RATE_VARIABILITY_SDNN: HealthDataUnit.MILLISECOND,
   HealthDataType.ELECTROCARDIOGRAM: HealthDataUnit.VOLT,
+
+  HealthDataType.NUTRITION: HealthDataUnit.NO_UNIT,
+
+  // Health Connect
+  HealthDataType.TOTAL_CALORIES_BURNED: HealthDataUnit.KILOCALORIE,
 };
 
-const PlatformTypeJsonValue = {
-  PlatformType.IOS: 'ios',
-  PlatformType.ANDROID: 'android',
-};
+// const PlatformTypeJsonValue = {
+//   PlatformType.IOS: 'ios',
+//   PlatformType.ANDROID: 'android',
+// };
 
 /// List of all [HealthDataUnit]s.
 enum HealthDataUnit {
@@ -257,14 +319,16 @@ enum HealthDataUnit {
 
   // Other units
   BEATS_PER_MINUTE,
+  RESPIRATIONS_PER_MINUTE,
   MILLIGRAM_PER_DECILITER,
   UNKNOWN_UNIT,
   NO_UNIT,
 }
 
 /// List of [HealthWorkoutActivityType]s.
-/// Commented for which platform they are supported
 enum HealthWorkoutActivityType {
+  // Commented for which platform the type are supported
+
   // Both
   ARCHERY,
   BADMINTON,
@@ -421,6 +485,15 @@ enum HealthWorkoutActivityType {
   OTHER,
 }
 
+enum MealType {
+  BREAKFAST,
+  LUNCH,
+  DINNER,
+  SNACK,
+  UNKNOWN,
+}
+
+/// Classifications for ECG readings.
 enum ElectrocardiogramClassification {
   NOT_SET,
   SINUS_RHYTHM,
@@ -432,26 +505,17 @@ enum ElectrocardiogramClassification {
   UNRECOGNIZED,
 }
 
+/// Extension to assign numbers to [ElectrocardiogramClassification]s
 extension ElectrocardiogramClassificationValue
     on ElectrocardiogramClassification {
-  int get value {
-    switch (this) {
-      case ElectrocardiogramClassification.NOT_SET:
-        return 0;
-      case ElectrocardiogramClassification.SINUS_RHYTHM:
-        return 1;
-      case ElectrocardiogramClassification.ATRIAL_FIBRILLATION:
-        return 2;
-      case ElectrocardiogramClassification.INCONCLUSIVE_LOW_HEART_RATE:
-        return 3;
-      case ElectrocardiogramClassification.INCONCLUSIVE_HIGH_HEART_RATE:
-        return 4;
-      case ElectrocardiogramClassification.INCONCLUSIVE_POOR_READING:
-        return 5;
-      case ElectrocardiogramClassification.INCONCLUSIVE_OTHER:
-        return 6;
-      case ElectrocardiogramClassification.UNRECOGNIZED:
-        return 100;
-    }
-  }
+  int get value => switch (this) {
+        ElectrocardiogramClassification.NOT_SET => 0,
+        ElectrocardiogramClassification.SINUS_RHYTHM => 1,
+        ElectrocardiogramClassification.ATRIAL_FIBRILLATION => 2,
+        ElectrocardiogramClassification.INCONCLUSIVE_LOW_HEART_RATE => 3,
+        ElectrocardiogramClassification.INCONCLUSIVE_HIGH_HEART_RATE => 4,
+        ElectrocardiogramClassification.INCONCLUSIVE_POOR_READING => 5,
+        ElectrocardiogramClassification.INCONCLUSIVE_OTHER => 6,
+        ElectrocardiogramClassification.UNRECOGNIZED => 100,
+      };
 }

@@ -1,12 +1,12 @@
 name: health
 description: Wrapper for HealthKit on iOS and Google Fit and Health Connect on Android.
-version: 5.0.0
+version: 10.2.0
 homepage: https://github.com/cph-cachet/flutter-plugins/tree/master/packages/health
-publish_to: none
+publish_to: 'none'
 
 environment:
-  sdk: ">=2.15.0 <4.0.0"
-  flutter: ">=3.0.0"
+  sdk: ">=3.2.0 <4.0.0"
+  flutter: ">=3.6.0"
 
 dependencies:
   flutter:
@@ -17,12 +17,20 @@ dependencies:
       url: https://github.com/FernandoDev007/plus_plugins.git
       path: packages/device_info_plus/device_info_plus
       ref: inuba
+  json_annotation: ^4.8.0
+  carp_serializable: ^1.1.0 # polymorphic json serialization
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   integration_test:
     sdk: flutter
+  flutter_lints: any
+
+  # Using carp_serializable & json_serializable to auto generate json code (.g files) with this command:
+  #   dart run build_runner build --delete-conflicting-outputs
+  build_runner: any
+  json_serializable: any
 
 flutter:
   plugin:
