@@ -102,24 +102,30 @@ class Health {
     List<HealthDataType> types, {
     List<HealthDataAccess>? permissions,
   }) async {
-    if (permissions != null && permissions.length != types.length) {
-      throw ArgumentError(
-          "The lists of types and permissions must be of same length.");
+    try {
+      if (permissions != null && permissions.length != types.length) {
+        throw ArgumentError(
+            "The lists of types and permissions must be of same length.");
+      }
+
+      final mTypes = List<HealthDataType>.from(types, growable: true);
+      final mPermissions = permissions == null
+          ? List<int>.filled(types.length, HealthDataAccess.READ.index,
+              growable: true)
+          : permissions.map((permission) => permission.index).toList();
+
+      /// On Android, if BMI is requested, then also ask for weight and height
+      if (Platform.isAndroid) _handleBMI(mTypes, mPermissions);
+
+      bool? hasPermissions = await _channel.invokeMethod('hasPermissions', {
+        "types": mTypes.map((type) => type.name).toList(),
+        "permissions": mPermissions,
+      });
+
+      return hasPermissions;
+    } catch (e) {
+      return null;
     }
-
-    final mTypes = List<HealthDataType>.from(types, growable: true);
-    final mPermissions = permissions == null
-        ? List<int>.filled(types.length, HealthDataAccess.READ.index,
-            growable: true)
-        : permissions.map((permission) => permission.index).toList();
-
-    /// On Android, if BMI is requested, then also ask for weight and height
-    if (Platform.isAndroid) _handleBMI(mTypes, mPermissions);
-
-    return await _channel.invokeMethod('hasPermissions', {
-      "types": mTypes.map((type) => type.name).toList(),
-      "permissions": mPermissions,
-    });
   }
 
   /// Revokes permissions of all types.
@@ -183,24 +189,30 @@ class Health {
     List<HealthDataType> types, {
     List<HealthDataAccess>? permissions,
   }) async {
-    if (permissions != null && permissions.length != types.length) {
-      throw ArgumentError(
-          'The length of [types] must be same as that of [permissions].');
+    try {
+      if (permissions != null && permissions.length != types.length) {
+        throw ArgumentError(
+            'The length of [types] must be same as that of [permissions].');
+      }
+
+      final mTypes = List<HealthDataType>.from(types, growable: true);
+      final mPermissions = permissions == null
+          ? List<int>.filled(types.length, HealthDataAccess.READ.index,
+              growable: true)
+          : permissions.map((permission) => permission.index).toList();
+
+      // on Android, if BMI is requested, then also ask for weight and height
+      if (Platform.isAndroid) _handleBMI(mTypes, mPermissions);
+
+      List<String> keys = mTypes.map((dataType) => dataType.name).toList();
+
+      bool? isDisconect = await _channel.invokeMethod(
+          'disconnect', {'types': keys, "permissions": mPermissions});
+
+      return isDisconect;
+    } catch (e) {
+      return null;
     }
-
-    final mTypes = List<HealthDataType>.from(types, growable: true);
-    final mPermissions = permissions == null
-        ? List<int>.filled(types.length, HealthDataAccess.READ.index,
-            growable: true)
-        : permissions.map((permission) => permission.index).toList();
-
-    // on Android, if BMI is requested, then also ask for weight and height
-    if (Platform.isAndroid) _handleBMI(mTypes, mPermissions);
-
-    List<String> keys = mTypes.map((dataType) => dataType.name).toList();
-
-    return await _channel.invokeMethod(
-        'disconnect', {'types': keys, "permissions": mPermissions});
   }
 
   /// Requests permissions to access health data [types].
@@ -227,40 +239,44 @@ class Health {
     List<HealthDataType> types, {
     List<HealthDataAccess>? permissions,
   }) async {
-    if (permissions != null && permissions.length != types.length) {
-      throw ArgumentError(
-          'The length of [types] must be same as that of [permissions].');
-    }
+    try {
+      if (permissions != null && permissions.length != types.length) {
+        throw ArgumentError(
+            'The length of [types] must be same as that of [permissions].');
+      }
 
-    if (permissions != null) {
-      for (int i = 0; i < types.length; i++) {
-        final type = types[i];
-        final permission = permissions[i];
-        if ((type == HealthDataType.ELECTROCARDIOGRAM ||
-                type == HealthDataType.HIGH_HEART_RATE_EVENT ||
-                type == HealthDataType.LOW_HEART_RATE_EVENT ||
-                type == HealthDataType.IRREGULAR_HEART_RATE_EVENT ||
-                type == HealthDataType.WALKING_HEART_RATE) &&
-            permission != HealthDataAccess.READ) {
-          throw ArgumentError(
-              'Requesting WRITE permission on ELECTROCARDIOGRAM / HIGH_HEART_RATE_EVENT / LOW_HEART_RATE_EVENT / IRREGULAR_HEART_RATE_EVENT / WALKING_HEART_RATE is not allowed.');
+      if (permissions != null) {
+        for (int i = 0; i < types.length; i++) {
+          final type = types[i];
+          final permission = permissions[i];
+          if ((type == HealthDataType.ELECTROCARDIOGRAM ||
+                  type == HealthDataType.HIGH_HEART_RATE_EVENT ||
+                  type == HealthDataType.LOW_HEART_RATE_EVENT ||
+                  type == HealthDataType.IRREGULAR_HEART_RATE_EVENT ||
+                  type == HealthDataType.WALKING_HEART_RATE) &&
+              permission != HealthDataAccess.READ) {
+            throw ArgumentError(
+                'Requesting WRITE permission on ELECTROCARDIOGRAM / HIGH_HEART_RATE_EVENT / LOW_HEART_RATE_EVENT / IRREGULAR_HEART_RATE_EVENT / WALKING_HEART_RATE is not allowed.');
+          }
         }
       }
+
+      final mTypes = List<HealthDataType>.from(types, growable: true);
+      final mPermissions = permissions == null
+          ? List<int>.filled(types.length, HealthDataAccess.READ.index,
+              growable: true)
+          : permissions.map((permission) => permission.index).toList();
+
+      // on Android, if BMI is requested, then also ask for weight and height
+      if (Platform.isAndroid) _handleBMI(mTypes, mPermissions);
+
+      List<String> keys = mTypes.map((e) => e.name).toList();
+      final bool? isAuthorized = await _channel.invokeMethod(
+          'requestAuthorization', {'types': keys, "permissions": mPermissions});
+      return isAuthorized ?? false;
+    } catch (e) {
+      return false;
     }
-
-    final mTypes = List<HealthDataType>.from(types, growable: true);
-    final mPermissions = permissions == null
-        ? List<int>.filled(types.length, HealthDataAccess.READ.index,
-            growable: true)
-        : permissions.map((permission) => permission.index).toList();
-
-    // on Android, if BMI is requested, then also ask for weight and height
-    if (Platform.isAndroid) _handleBMI(mTypes, mPermissions);
-
-    List<String> keys = mTypes.map((e) => e.name).toList();
-    final bool? isAuthorized = await _channel.invokeMethod(
-        'requestAuthorization', {'types': keys, "permissions": mPermissions});
-    return isAuthorized ?? false;
   }
 
   /// Obtains health and weight if BMI is requested on Android.
@@ -615,20 +631,24 @@ class Health {
     required DateTime endTime,
     bool includeManualEntry = true,
   }) async {
-    List<HealthDataPoint> dataPoints = [];
+    try {
+      List<HealthDataPoint> dataPoints = <HealthDataPoint>[];
 
-    for (var type in types) {
-      final result =
-          await _prepareQuery(startTime, endTime, type, includeManualEntry);
-      dataPoints.addAll(result);
+      for (var type in types) {
+        final result =
+            await _prepareQuery(startTime, endTime, type, includeManualEntry);
+        dataPoints.addAll(result);
+      }
+
+      const int threshold = 100;
+      if (dataPoints.length > threshold) {
+        return compute(removeDuplicates, dataPoints);
+      }
+
+      return removeDuplicates(dataPoints);
+    } catch (e) {
+      return <HealthDataPoint>[];
     }
-
-    const int threshold = 100;
-    if (dataPoints.length > threshold) {
-      return compute(removeDuplicates, dataPoints);
-    }
-
-    return removeDuplicates(dataPoints);
   }
 
   /// Fetch a list of health data points based on [types].
@@ -739,28 +759,32 @@ class Health {
   /// Fetches data points from Android/iOS native code.
   Future<List<HealthDataPoint>> _dataQuery(DateTime startTime, DateTime endTime,
       HealthDataType dataType, bool includeManualEntry) async {
-    final args = <String, dynamic>{
-      'dataTypeKey': dataType.name,
-      'dataUnitKey': dataTypeToUnit[dataType]!.name,
-      'startTime': startTime.millisecondsSinceEpoch,
-      'endTime': endTime.millisecondsSinceEpoch,
-      'includeManualEntry': includeManualEntry
-    };
-    final fetchedDataPoints = await _channel.invokeMethod('getData', args);
-
-    if (fetchedDataPoints != null && fetchedDataPoints is List) {
-      final msg = <String, dynamic>{
-        "dataType": dataType,
-        "dataPoints": fetchedDataPoints,
+    try {
+      final args = <String, dynamic>{
+        'dataTypeKey': dataType.name,
+        'dataUnitKey': dataTypeToUnit[dataType]!.name,
+        'startTime': startTime.millisecondsSinceEpoch,
+        'endTime': endTime.millisecondsSinceEpoch,
+        'includeManualEntry': includeManualEntry
       };
-      const thresHold = 100;
-      // If the no. of data points are larger than the threshold,
-      // call the compute method to spawn an Isolate to do the parsing in a separate thread.
-      if (fetchedDataPoints.length > thresHold) {
-        return compute(_parse, msg);
+      var fetchedDataPoints = await _channel.invokeMethod('getData', args);
+
+      if (fetchedDataPoints != null && fetchedDataPoints is List) {
+        final msg = <String, dynamic>{
+          "dataType": dataType,
+          "dataPoints": fetchedDataPoints,
+        };
+        const int thresHold = 100;
+        // If the no. of data points are larger than the threshold,
+        // call the compute method to spawn an Isolate to do the parsing in a separate thread.
+        if (fetchedDataPoints.length > thresHold) {
+          return compute(_parse, msg);
+        }
+        return _parse(msg);
+      } else {
+        return <HealthDataPoint>[];
       }
-      return _parse(msg);
-    } else {
+    } catch (e) {
       return <HealthDataPoint>[];
     }
   }
@@ -772,25 +796,29 @@ class Health {
       HealthDataType dataType,
       int interval,
       bool includeManualEntry) async {
-    final args = <String, dynamic>{
-      'dataTypeKey': dataType.name,
-      'dataUnitKey': dataTypeToUnit[dataType]!.name,
-      'startTime': startDate.millisecondsSinceEpoch,
-      'endTime': endDate.millisecondsSinceEpoch,
-      'interval': interval,
-      'includeManualEntry': includeManualEntry
-    };
-
-    final fetchedDataPoints =
-        await _channel.invokeMethod('getIntervalData', args);
-    if (fetchedDataPoints != null) {
-      final msg = <String, dynamic>{
-        "dataType": dataType,
-        "dataPoints": fetchedDataPoints,
+    try {
+      final args = <String, dynamic>{
+        'dataTypeKey': dataType.name,
+        'dataUnitKey': dataTypeToUnit[dataType]!.name,
+        'startTime': startDate.millisecondsSinceEpoch,
+        'endTime': endDate.millisecondsSinceEpoch,
+        'interval': interval,
+        'includeManualEntry': includeManualEntry
       };
-      return _parse(msg);
+
+      final fetchedDataPoints =
+          await _channel.invokeMethod('getIntervalData', args);
+      if (fetchedDataPoints != null) {
+        final msg = <String, dynamic>{
+          "dataType": dataType,
+          "dataPoints": fetchedDataPoints,
+        };
+        return _parse(msg);
+      }
+      return <HealthDataPoint>[];
+    } catch (e) {
+      return <HealthDataPoint>[];
     }
-    return <HealthDataPoint>[];
   }
 
   /// function for fetching statistic health data
@@ -800,25 +828,29 @@ class Health {
       List<HealthDataType> dataTypes,
       int activitySegmentDuration,
       bool includeManualEntry) async {
-    final args = <String, dynamic>{
-      'dataTypeKeys': dataTypes.map((dataType) => dataType.name).toList(),
-      'startTime': startDate.millisecondsSinceEpoch,
-      'endTime': endDate.millisecondsSinceEpoch,
-      'activitySegmentDuration': activitySegmentDuration,
-      'includeManualEntry': includeManualEntry
-    };
-
-    final fetchedDataPoints =
-        await _channel.invokeMethod('getAggregateData', args);
-
-    if (fetchedDataPoints != null) {
-      final msg = <String, dynamic>{
-        "dataType": HealthDataType.WORKOUT,
-        "dataPoints": fetchedDataPoints,
+    try {
+      final args = <String, dynamic>{
+        'dataTypeKeys': dataTypes.map((dataType) => dataType.name).toList(),
+        'startTime': startDate.millisecondsSinceEpoch,
+        'endTime': endDate.millisecondsSinceEpoch,
+        'activitySegmentDuration': activitySegmentDuration,
+        'includeManualEntry': includeManualEntry
       };
-      return _parse(msg);
+
+      final fetchedDataPoints =
+          await _channel.invokeMethod('getAggregateData', args);
+
+      if (fetchedDataPoints != null) {
+        final msg = <String, dynamic>{
+          "dataType": HealthDataType.WORKOUT,
+          "dataPoints": fetchedDataPoints,
+        };
+        return _parse(msg);
+      }
+      return <HealthDataPoint>[];
+    } catch (e) {
+      return <HealthDataPoint>[];
     }
-    return <HealthDataPoint>[];
   }
 
   List<HealthDataPoint> _parse(Map<String, dynamic> message) {
@@ -843,15 +875,19 @@ class Health {
     DateTime startTime,
     DateTime endTime,
   ) async {
-    final args = <String, dynamic>{
-      'startTime': startTime.millisecondsSinceEpoch,
-      'endTime': endTime.millisecondsSinceEpoch
-    };
-    final stepsCount = await _channel.invokeMethod<int?>(
-      'getTotalStepsInInterval',
-      args,
-    );
-    return stepsCount;
+    try {
+      final args = <String, dynamic>{
+        'startTime': startTime.millisecondsSinceEpoch,
+        'endTime': endTime.millisecondsSinceEpoch
+      };
+      final stepsCount = await _channel.invokeMethod<int?>(
+        'getTotalStepsInInterval',
+        args,
+      );
+      return stepsCount;
+    } catch (e) {
+      return null;
+    }
   }
 
   /// Assigns numbers to specific [HealthDataType]s.
@@ -899,25 +935,31 @@ class Health {
     HealthDataUnit totalDistanceUnit = HealthDataUnit.METER,
     String? title,
   }) async {
-    // Check that value is on the current Platform
-    if (Platform.isIOS && !_isOnIOS(activityType)) {
-      throw HealthException(activityType,
-          "Workout activity type $activityType is not supported on iOS");
-    } else if (Platform.isAndroid && !_isOnAndroid(activityType)) {
-      throw HealthException(activityType,
-          "Workout activity type $activityType is not supported on Android");
+    try {
+      // Check that value is on the current Platform
+      if (Platform.isIOS && !_isOnIOS(activityType)) {
+        throw HealthException(activityType,
+            "Workout activity type $activityType is not supported on iOS");
+      } else if (Platform.isAndroid && !_isOnAndroid(activityType)) {
+        throw HealthException(activityType,
+            "Workout activity type $activityType is not supported on Android");
+      }
+      final args = <String, dynamic>{
+        'activityType': activityType.name,
+        'startTime': start.millisecondsSinceEpoch,
+        'endTime': end.millisecondsSinceEpoch,
+        'totalEnergyBurned': totalEnergyBurned,
+        'totalEnergyBurnedUnit': totalEnergyBurnedUnit.name,
+        'totalDistance': totalDistance,
+        'totalDistanceUnit': totalDistanceUnit.name,
+        'title': title,
+      };
+
+      bool completed = await _channel.invokeMethod('writeWorkoutData', args) == true;
+      return completed;
+    } catch (e) {
+      return false;
     }
-    final args = <String, dynamic>{
-      'activityType': activityType.name,
-      'startTime': start.millisecondsSinceEpoch,
-      'endTime': end.millisecondsSinceEpoch,
-      'totalEnergyBurned': totalEnergyBurned,
-      'totalEnergyBurnedUnit': totalEnergyBurnedUnit.name,
-      'totalDistance': totalDistance,
-      'totalDistanceUnit': totalDistanceUnit.name,
-      'title': title,
-    };
-    return await _channel.invokeMethod('writeWorkoutData', args) == true;
   }
 
   /// Check if the given [HealthWorkoutActivityType] is supported on the iOS platform

@@ -8,6 +8,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Handler
 import android.util.Log
+import android.health.connect.HealthConnectException
 import androidx.activity.ComponentActivity
 import androidx.activity.result.ActivityResultLauncher
 import androidx.annotation.NonNull
@@ -21,6 +22,8 @@ import androidx.health.connect.client.records.MealType.MEAL_TYPE_DINNER
 import androidx.health.connect.client.records.MealType.MEAL_TYPE_LUNCH
 import androidx.health.connect.client.records.MealType.MEAL_TYPE_SNACK
 import androidx.health.connect.client.records.MealType.MEAL_TYPE_UNKNOWN
+import androidx.health.connect.client.response.ReadRecordResponse
+import androidx.health.connect.client.response.ReadRecordsResponse
 import androidx.health.connect.client.request.AggregateGroupByDurationRequest
 import androidx.health.connect.client.request.AggregateRequest
 import androidx.health.connect.client.request.ReadRecordsRequest
@@ -482,10 +485,11 @@ class HealthPlugin(private var channel: MethodChannel? = null) :
                 threadPoolExecutor = Executors.newFixedThreadPool(4)
                 checkAvailability()
                 if (healthConnectAvailable) {
-                        healthConnectClient =
-                                        HealthConnectClient.getOrCreate(
-                                                        flutterPluginBinding.applicationContext
-                                        )
+                        try {
+                                healthConnectClient = HealthConnectClient.getOrCreate(flutterPluginBinding.applicationContext)
+                        } catch (e: Exception) {
+                                Log.w("FLUTTER_HEALTH::ERROR", "unable to health connect available")
+                        }
                 }
         }
 
@@ -647,31 +651,33 @@ class HealthPlugin(private var channel: MethodChannel? = null) :
                         return
                 }
 
-                val type = call.argument<String>("dataTypeKey")!!
-                val startTime = call.argument<Long>("startTime")!!
-                val endTime = call.argument<Long>("endTime")!!
-
-                // Look up data type and unit for the type key
-                val dataType = keyToHealthDataType(type)
-                val field = getField(type)
-
-                val typesBuilder = FitnessOptions.builder()
-                typesBuilder.addDataType(dataType, FitnessOptions.ACCESS_WRITE)
-
-                val dataSource =
-                                DataDeleteRequest.Builder()
-                                                .setTimeInterval(
-                                                                startTime,
-                                                                endTime,
-                                                                TimeUnit.MILLISECONDS
-                                                )
-                                                .addDataType(dataType)
-                                                .deleteAllSessions()
-                                                .build()
-
-                val fitnessOptions = typesBuilder.build()
-
                 try {
+
+                        val type = call.argument<String>("dataTypeKey")!!
+                        val startTime = call.argument<Long>("startTime")!!
+                        val endTime = call.argument<Long>("endTime")!!
+
+                        // Look up data type and unit for the type key
+                        val dataType = keyToHealthDataType(type)
+                        val field = getField(type)
+
+                        val typesBuilder = FitnessOptions.builder()
+                        typesBuilder.addDataType(dataType, FitnessOptions.ACCESS_WRITE)
+
+                        val dataSource =
+                                        DataDeleteRequest.Builder()
+                                                        .setTimeInterval(
+                                                                        startTime,
+                                                                        endTime,
+                                                                        TimeUnit.MILLISECONDS
+                                                        )
+                                                        .addDataType(dataType)
+                                                        .deleteAllSessions()
+                                                        .build()
+
+                        val fitnessOptions = typesBuilder.build()
+
+                
                         val googleSignInAccount =
                                         GoogleSignIn.getAccountForExtension(
                                                         context!!.applicationContext,
@@ -692,8 +698,14 @@ class HealthPlugin(private var channel: MethodChannel? = null) :
                                                                         "There was an error deleting the dataset"
                                                         )
                                         )
-                } catch (e3: Exception) {
-                        result.success(false)
+                } catch (e: Exception) {
+                        if (e.message?.contains("API call quota exceeded") == true) {
+                                Log.w("FLUTTER_HEALTH::ERROR", "API call quota exceeded. Please try again later.")
+                                result.success(false)
+                        } else {
+                                Log.w("FLUTTER_HEALTH::ERROR", "unable to return writeBloodPressure")
+                                result.success(false)
+                        }
                 }
         }
 
@@ -708,49 +720,51 @@ class HealthPlugin(private var channel: MethodChannel? = null) :
                         return
                 }
 
-                val dataType = HealthDataTypes.TYPE_BLOOD_PRESSURE
-                val systolic = call.argument<Float>("systolic")!!
-                val diastolic = call.argument<Float>("diastolic")!!
-                val startTime = call.argument<Long>("startTime")!!
-                val endTime = call.argument<Long>("endTime")!!
-
-                val typesBuilder = FitnessOptions.builder()
-                typesBuilder.addDataType(dataType, FitnessOptions.ACCESS_WRITE)
-
-                val dataSource =
-                                DataSource.Builder()
-                                                .setDataType(dataType)
-                                                .setType(DataSource.TYPE_RAW)
-                                                .setDevice(
-                                                                Device.getLocalDevice(
-                                                                                context!!.applicationContext
-                                                                )
-                                                )
-                                                .setAppPackageName(context!!.applicationContext)
-                                                .build()
-
-                val builder =
-                                DataPoint.builder(dataSource)
-                                                .setTimeInterval(
-                                                                startTime,
-                                                                endTime,
-                                                                TimeUnit.MILLISECONDS
-                                                )
-                                                .setField(
-                                                                HealthFields.FIELD_BLOOD_PRESSURE_SYSTOLIC,
-                                                                systolic
-                                                )
-                                                .setField(
-                                                                HealthFields.FIELD_BLOOD_PRESSURE_DIASTOLIC,
-                                                                diastolic
-                                                )
-                                                .build()
-
-                val dataPoint = builder
-                val dataSet = DataSet.builder(dataSource).add(dataPoint).build()
-
-                val fitnessOptions = typesBuilder.build()
                 try {
+
+                        val dataType = HealthDataTypes.TYPE_BLOOD_PRESSURE
+                        val systolic = call.argument<Float>("systolic")!!
+                        val diastolic = call.argument<Float>("diastolic")!!
+                        val startTime = call.argument<Long>("startTime")!!
+                        val endTime = call.argument<Long>("endTime")!!
+
+                        val typesBuilder = FitnessOptions.builder()
+                        typesBuilder.addDataType(dataType, FitnessOptions.ACCESS_WRITE)
+
+                        val dataSource =
+                                        DataSource.Builder()
+                                                        .setDataType(dataType)
+                                                        .setType(DataSource.TYPE_RAW)
+                                                        .setDevice(
+                                                                        Device.getLocalDevice(
+                                                                                        context!!.applicationContext
+                                                                        )
+                                                        )
+                                                        .setAppPackageName(context!!.applicationContext)
+                                                        .build()
+
+                        val builder =
+                                        DataPoint.builder(dataSource)
+                                                        .setTimeInterval(
+                                                                        startTime,
+                                                                        endTime,
+                                                                        TimeUnit.MILLISECONDS
+                                                        )
+                                                        .setField(
+                                                                        HealthFields.FIELD_BLOOD_PRESSURE_SYSTOLIC,
+                                                                        systolic
+                                                        )
+                                                        .setField(
+                                                                        HealthFields.FIELD_BLOOD_PRESSURE_DIASTOLIC,
+                                                                        diastolic
+                                                        )
+                                                        .build()
+
+                        val dataPoint = builder
+                        val dataSet = DataSet.builder(dataSource).add(dataPoint).build()
+
+                        val fitnessOptions = typesBuilder.build()
+                
                         val googleSignInAccount =
                                         GoogleSignIn.getAccountForExtension(
                                                         context!!.applicationContext,
@@ -771,58 +785,74 @@ class HealthPlugin(private var channel: MethodChannel? = null) :
                                                                         "There was an error adding the blood pressure data!",
                                                         ),
                                         )
-                } catch (e3: Exception) {
-                        result.success(false)
+                } catch (e: Exception) {
+                        if (e.message?.contains("API call quota exceeded") == true) {
+                                Log.w("FLUTTER_HEALTH::ERROR", "API call quota exceeded. Please try again later.")
+                                result.success(false)
+                        } else {
+                                Log.w("FLUTTER_HEALTH::ERROR", "unable to return writeBloodPressure")
+                                result.success(false)
+                        }
                 }
         }
 
         private fun writeMealHC(call: MethodCall, result: Result) {
-                val startTime = Instant.ofEpochMilli(call.argument<Long>("startTime")!!)
-                val endTime = Instant.ofEpochMilli(call.argument<Long>("endTime")!!)
-                val calories = call.argument<Double>("caloriesConsumed")
-                val carbs = call.argument<Double>("carbohydrates") as Double?
-                val protein = call.argument<Double>("protein") as Double?
-                val fat = call.argument<Double>("fatTotal") as Double?
-                val caffeine = call.argument<Double>("caffeine") as Double?
-                val name = call.argument<String>("name")
-                val mealType = call.argument<String>("mealType")!!
+                try {
+                        val startTime = Instant.ofEpochMilli(call.argument<Long>("startTime")!!)
+                        val endTime = Instant.ofEpochMilli(call.argument<Long>("endTime")!!)
+                        val calories = call.argument<Double>("caloriesConsumed")
+                        val carbs = call.argument<Double>("carbohydrates") as Double?
+                        val protein = call.argument<Double>("protein") as Double?
+                        val fat = call.argument<Double>("fatTotal") as Double?
+                        val caffeine = call.argument<Double>("caffeine") as Double?
+                        val name = call.argument<String>("name")
+                        val mealType = call.argument<String>("mealType")!!
 
-                scope.launch {
-                        try {
-                                val list = mutableListOf<Record>()
-                                list.add(
-                                                NutritionRecord(
-                                                                name = name,
-                                                                energy = calories?.kilocalories,
-                                                                totalCarbohydrate = carbs?.grams,
-                                                                protein = protein?.grams,
-                                                                totalFat = fat?.grams,
-                                                                caffeine = caffeine?.grams,
-                                                                startTime = startTime,
-                                                                startZoneOffset = null,
-                                                                endTime = endTime,
-                                                                endZoneOffset = null,
-                                                                mealType =
-                                                                                MapMealTypeToTypeHC[
-                                                                                                mealType]
-                                                                                                ?: MEAL_TYPE_UNKNOWN,
-                                                ),
-                                )
-                                healthConnectClient.insertRecords(
-                                                list,
-                                )
-                                result.success(true)
-                                Log.i(
-                                                "FLUTTER_HEALTH::SUCCESS",
-                                                "[Health Connect] Meal was successfully added!"
-                                )
-                        } catch (e: Exception) {
-                                Log.w(
-                                                "FLUTTER_HEALTH::ERROR",
-                                                "[Health Connect] There was an error adding the meal",
-                                )
-                                Log.w("FLUTTER_HEALTH::ERROR", e.message ?: "unknown error")
-                                Log.w("FLUTTER_HEALTH::ERROR", e.stackTrace.toString())
+                        scope.launch {
+                                try {
+                                        val list = mutableListOf<Record>()
+                                        list.add(
+                                                        NutritionRecord(
+                                                                        name = name,
+                                                                        energy = calories?.kilocalories,
+                                                                        totalCarbohydrate = carbs?.grams,
+                                                                        protein = protein?.grams,
+                                                                        totalFat = fat?.grams,
+                                                                        caffeine = caffeine?.grams,
+                                                                        startTime = startTime,
+                                                                        startZoneOffset = null,
+                                                                        endTime = endTime,
+                                                                        endZoneOffset = null,
+                                                                        mealType =
+                                                                                        MapMealTypeToTypeHC[
+                                                                                                        mealType]
+                                                                                                        ?: MEAL_TYPE_UNKNOWN,
+                                                        ),
+                                        )
+                                        healthConnectClient.insertRecords(
+                                                        list,
+                                        )
+                                        result.success(true)
+                                        Log.i(
+                                                        "FLUTTER_HEALTH::SUCCESS",
+                                                        "[Health Connect] Meal was successfully added!"
+                                        )
+                                } catch (e: Exception) {
+                                        if (e.message?.contains("API call quota exceeded") == true) {
+                                                Log.w("FLUTTER_HEALTH::ERROR", "API call quota exceeded. Please try again later.")
+                                                result.success(false)
+                                        } else {
+                                                Log.w("FLUTTER_HEALTH::ERROR", "unable to return writeMealHC")
+                                                result.success(false)
+                                        }
+                                }
+                        }
+                } catch (e: Exception) {
+                        if (e.message?.contains("API call quota exceeded") == true) {
+                                Log.w("FLUTTER_HEALTH::ERROR", "API call quota exceeded. Please try again later.")
+                                result.success(false)
+                        } else {
+                                Log.w("FLUTTER_HEALTH::ERROR", "unable to return writeMealHC")
                                 result.success(false)
                         }
                 }
@@ -840,70 +870,71 @@ class HealthPlugin(private var channel: MethodChannel? = null) :
                         return
                 }
 
-                val startTime = call.argument<Long>("startTime")!!
-                val endTime = call.argument<Long>("endTime")!!
-                val calories = call.argument<Double>("caloriesConsumed")
-                val carbs = call.argument<Double>("carbohydrates") as Double?
-                val protein = call.argument<Double>("protein") as Double?
-                val fat = call.argument<Double>("fatTotal") as Double?
-                val name = call.argument<String>("name")
-                val mealType = call.argument<String>("mealType")!!
-
-                val dataType = DataType.TYPE_NUTRITION
-
-                val typesBuilder = FitnessOptions.builder()
-                typesBuilder.addDataType(dataType, FitnessOptions.ACCESS_WRITE)
-
-                val dataSource =
-                                DataSource.Builder()
-                                                .setDataType(dataType)
-                                                .setType(DataSource.TYPE_RAW)
-                                                .setDevice(
-                                                                Device.getLocalDevice(
-                                                                                context!!.applicationContext
-                                                                )
-                                                )
-                                                .setAppPackageName(context!!.applicationContext)
-                                                .build()
-
-                val nutrients = mutableMapOf(Field.NUTRIENT_CALORIES to calories?.toFloat())
-
-                if (carbs != null) {
-                        nutrients[Field.NUTRIENT_TOTAL_CARBS] = carbs.toFloat()
-                }
-
-                if (protein != null) {
-                        nutrients[Field.NUTRIENT_PROTEIN] = protein.toFloat()
-                }
-
-                if (fat != null) {
-                        nutrients[Field.NUTRIENT_TOTAL_FAT] = fat.toFloat()
-                }
-
-                val dataBuilder =
-                                DataPoint.builder(dataSource)
-                                                .setTimeInterval(
-                                                                startTime,
-                                                                endTime,
-                                                                TimeUnit.MILLISECONDS
-                                                )
-                                                .setField(Field.FIELD_NUTRIENTS, nutrients)
-
-                if (name != null) {
-                        dataBuilder.setField(Field.FIELD_FOOD_ITEM, name as String)
-                }
-
-                dataBuilder.setField(
-                                Field.FIELD_MEAL_TYPE,
-                                MapMealTypeToType[mealType] ?: Field.MEAL_TYPE_UNKNOWN
-                )
-
-                val dataPoint = dataBuilder.build()
-
-                val dataSet = DataSet.builder(dataSource).add(dataPoint).build()
-
-                val fitnessOptions = typesBuilder.build()
                 try {
+                        val startTime = call.argument<Long>("startTime")!!
+                        val endTime = call.argument<Long>("endTime")!!
+                        val calories = call.argument<Double>("caloriesConsumed")
+                        val carbs = call.argument<Double>("carbohydrates") as Double?
+                        val protein = call.argument<Double>("protein") as Double?
+                        val fat = call.argument<Double>("fatTotal") as Double?
+                        val name = call.argument<String>("name")
+                        val mealType = call.argument<String>("mealType")!!
+
+                        val dataType = DataType.TYPE_NUTRITION
+
+                        val typesBuilder = FitnessOptions.builder()
+                        typesBuilder.addDataType(dataType, FitnessOptions.ACCESS_WRITE)
+
+                        val dataSource =
+                                        DataSource.Builder()
+                                                        .setDataType(dataType)
+                                                        .setType(DataSource.TYPE_RAW)
+                                                        .setDevice(
+                                                                        Device.getLocalDevice(
+                                                                                        context!!.applicationContext
+                                                                        )
+                                                        )
+                                                        .setAppPackageName(context!!.applicationContext)
+                                                        .build()
+
+                        val nutrients = mutableMapOf(Field.NUTRIENT_CALORIES to calories?.toFloat())
+
+                        if (carbs != null) {
+                                nutrients[Field.NUTRIENT_TOTAL_CARBS] = carbs.toFloat()
+                        }
+
+                        if (protein != null) {
+                                nutrients[Field.NUTRIENT_PROTEIN] = protein.toFloat()
+                        }
+
+                        if (fat != null) {
+                                nutrients[Field.NUTRIENT_TOTAL_FAT] = fat.toFloat()
+                        }
+
+                        val dataBuilder =
+                                        DataPoint.builder(dataSource)
+                                                        .setTimeInterval(
+                                                                        startTime,
+                                                                        endTime,
+                                                                        TimeUnit.MILLISECONDS
+                                                        )
+                                                        .setField(Field.FIELD_NUTRIENTS, nutrients)
+
+                        if (name != null) {
+                                dataBuilder.setField(Field.FIELD_FOOD_ITEM, name as String)
+                        }
+
+                        dataBuilder.setField(
+                                        Field.FIELD_MEAL_TYPE,
+                                        MapMealTypeToType[mealType] ?: Field.MEAL_TYPE_UNKNOWN
+                        )
+
+                        val dataPoint = dataBuilder.build()
+
+                        val dataSet = DataSet.builder(dataSource).add(dataPoint).build()
+
+                        val fitnessOptions = typesBuilder.build()
+                
                         val googleSignInAccount =
                                         GoogleSignIn.getAccountForExtension(
                                                         context!!.applicationContext,
@@ -924,8 +955,14 @@ class HealthPlugin(private var channel: MethodChannel? = null) :
                                                                         "There was an error adding the meal data!"
                                                         )
                                         )
-                } catch (e3: Exception) {
-                        result.success(false)
+                } catch (e: Exception) {
+                        if (e.message?.contains("API call quota exceeded") == true) {
+                                Log.w("FLUTTER_HEALTH::ERROR", "API call quota exceeded. Please try again later.")
+                                result.success(false)
+                        } else {
+                                Log.w("FLUTTER_HEALTH::ERROR", "unable to return writeMeal")
+                                result.success(false)
+                        }
                 }
         }
 
@@ -940,71 +977,72 @@ class HealthPlugin(private var channel: MethodChannel? = null) :
                         return
                 }
 
-                val type = call.argument<String>("dataTypeKey")!!
-                val startTime = call.argument<Long>("startTime")!!
-                val endTime = call.argument<Long>("endTime")!!
-                val value = call.argument<Float>("value")!!
-
-                // Look up data type and unit for the type key
-                val dataType = keyToHealthDataType(type)
-                val field = getField(type)
-
-                val typesBuilder = FitnessOptions.builder()
-                typesBuilder.addDataType(dataType, FitnessOptions.ACCESS_WRITE)
-
-                val dataSource =
-                                DataSource.Builder()
-                                                .setDataType(dataType)
-                                                .setType(DataSource.TYPE_RAW)
-                                                .setDevice(
-                                                                Device.getLocalDevice(
-                                                                                context!!.applicationContext
-                                                                )
-                                                )
-                                                .setAppPackageName(context!!.applicationContext)
-                                                .build()
-
-                val builder =
-                                if (startTime == endTime) {
-                                        DataPoint.builder(dataSource)
-                                                        .setTimestamp(
-                                                                        startTime,
-                                                                        TimeUnit.MILLISECONDS
-                                                        )
-                                } else {
-                                        DataPoint.builder(dataSource)
-                                                        .setTimeInterval(
-                                                                        startTime,
-                                                                        endTime,
-                                                                        TimeUnit.MILLISECONDS
-                                                        )
-                                }
-
-                // Conversion is needed because glucose is stored as mmoll in Google Fit;
-                // while mgdl is used for glucose in this plugin.
-                val isGlucose = field == HealthFields.FIELD_BLOOD_GLUCOSE_LEVEL
-                val dataPoint =
-                                if (!isIntField(dataSource, field)) {
-                                        builder.setField(
-                                                                        field,
-                                                                        (if (!isGlucose) value
-                                                                        else
-                                                                                        (value /
-                                                                                                                        MMOLL_2_MGDL)
-                                                                                                        .toFloat())
-                                                        )
-                                                        .build()
-                                } else {
-                                        builder.setField(field, value.toInt()).build()
-                                }
-
-                val dataSet = DataSet.builder(dataSource).add(dataPoint).build()
-
-                if (dataType == DataType.TYPE_SLEEP_SEGMENT) {
-                        typesBuilder.accessSleepSessions(FitnessOptions.ACCESS_READ)
-                }
-                val fitnessOptions = typesBuilder.build()
                 try {
+                        val type = call.argument<String>("dataTypeKey")!!
+                        val startTime = call.argument<Long>("startTime")!!
+                        val endTime = call.argument<Long>("endTime")!!
+                        val value = call.argument<Float>("value")!!
+
+                        // Look up data type and unit for the type key
+                        val dataType = keyToHealthDataType(type)
+                        val field = getField(type)
+
+                        val typesBuilder = FitnessOptions.builder()
+                        typesBuilder.addDataType(dataType, FitnessOptions.ACCESS_WRITE)
+
+                        val dataSource =
+                                        DataSource.Builder()
+                                                        .setDataType(dataType)
+                                                        .setType(DataSource.TYPE_RAW)
+                                                        .setDevice(
+                                                                        Device.getLocalDevice(
+                                                                                        context!!.applicationContext
+                                                                        )
+                                                        )
+                                                        .setAppPackageName(context!!.applicationContext)
+                                                        .build()
+
+                        val builder =
+                                        if (startTime == endTime) {
+                                                DataPoint.builder(dataSource)
+                                                                .setTimestamp(
+                                                                                startTime,
+                                                                                TimeUnit.MILLISECONDS
+                                                                )
+                                        } else {
+                                                DataPoint.builder(dataSource)
+                                                                .setTimeInterval(
+                                                                                startTime,
+                                                                                endTime,
+                                                                                TimeUnit.MILLISECONDS
+                                                                )
+                                        }
+
+                        // Conversion is needed because glucose is stored as mmoll in Google Fit;
+                        // while mgdl is used for glucose in this plugin.
+                        val isGlucose = field == HealthFields.FIELD_BLOOD_GLUCOSE_LEVEL
+                        val dataPoint =
+                                        if (!isIntField(dataSource, field)) {
+                                                builder.setField(
+                                                                                field,
+                                                                                (if (!isGlucose) value
+                                                                                else
+                                                                                                (value /
+                                                                                                                                MMOLL_2_MGDL)
+                                                                                                                .toFloat())
+                                                                )
+                                                                .build()
+                                        } else {
+                                                builder.setField(field, value.toInt()).build()
+                                        }
+
+                        val dataSet = DataSet.builder(dataSource).add(dataPoint).build()
+
+                        if (dataType == DataType.TYPE_SLEEP_SEGMENT) {
+                                typesBuilder.accessSleepSessions(FitnessOptions.ACCESS_READ)
+                        }
+                        val fitnessOptions = typesBuilder.build()
+                
                         val googleSignInAccount =
                                         GoogleSignIn.getAccountForExtension(
                                                         context!!.applicationContext,
@@ -1025,8 +1063,14 @@ class HealthPlugin(private var channel: MethodChannel? = null) :
                                                                         "There was an error adding the dataset"
                                                         )
                                         )
-                } catch (e3: Exception) {
-                        result.success(false)
+                } catch (e: Exception) {
+                        if (e.message?.contains("API call quota exceeded") == true) {
+                                Log.w("FLUTTER_HEALTH::ERROR", "API call quota exceeded. Please try again later.")
+                                result.success(false)
+                        } else {
+                                Log.w("FLUTTER_HEALTH::ERROR", "unable to return writeData")
+                                result.success(false)
+                        }
                 }
         }
 
@@ -1046,51 +1090,52 @@ class HealthPlugin(private var channel: MethodChannel? = null) :
                         return
                 }
 
-                val dataType = HealthDataTypes.TYPE_OXYGEN_SATURATION
-                val startTime = call.argument<Long>("startTime")!!
-                val endTime = call.argument<Long>("endTime")!!
-                val saturation = call.argument<Float>("value")!!
-                val flowRate = call.argument<Float>("flowRate")!!
-
-                val typesBuilder = FitnessOptions.builder()
-                typesBuilder.addDataType(dataType, FitnessOptions.ACCESS_WRITE)
-
-                val dataSource =
-                                DataSource.Builder()
-                                                .setDataType(dataType)
-                                                .setType(DataSource.TYPE_RAW)
-                                                .setDevice(
-                                                                Device.getLocalDevice(
-                                                                                context!!.applicationContext
-                                                                )
-                                                )
-                                                .setAppPackageName(context!!.applicationContext)
-                                                .build()
-
-                val builder =
-                                if (startTime == endTime) {
-                                        DataPoint.builder(dataSource)
-                                                        .setTimestamp(
-                                                                        startTime,
-                                                                        TimeUnit.MILLISECONDS
-                                                        )
-                                } else {
-                                        DataPoint.builder(dataSource)
-                                                        .setTimeInterval(
-                                                                        startTime,
-                                                                        endTime,
-                                                                        TimeUnit.MILLISECONDS
-                                                        )
-                                }
-
-                builder.setField(HealthFields.FIELD_SUPPLEMENTAL_OXYGEN_FLOW_RATE, flowRate)
-                builder.setField(HealthFields.FIELD_OXYGEN_SATURATION, saturation)
-
-                val dataPoint = builder.build()
-                val dataSet = DataSet.builder(dataSource).add(dataPoint).build()
-
-                val fitnessOptions = typesBuilder.build()
                 try {
+                        val dataType = HealthDataTypes.TYPE_OXYGEN_SATURATION
+                        val startTime = call.argument<Long>("startTime")!!
+                        val endTime = call.argument<Long>("endTime")!!
+                        val saturation = call.argument<Float>("value")!!
+                        val flowRate = call.argument<Float>("flowRate")!!
+
+                        val typesBuilder = FitnessOptions.builder()
+                        typesBuilder.addDataType(dataType, FitnessOptions.ACCESS_WRITE)
+
+                        val dataSource =
+                                        DataSource.Builder()
+                                                        .setDataType(dataType)
+                                                        .setType(DataSource.TYPE_RAW)
+                                                        .setDevice(
+                                                                        Device.getLocalDevice(
+                                                                                        context!!.applicationContext
+                                                                        )
+                                                        )
+                                                        .setAppPackageName(context!!.applicationContext)
+                                                        .build()
+
+                        val builder =
+                                        if (startTime == endTime) {
+                                                DataPoint.builder(dataSource)
+                                                                .setTimestamp(
+                                                                                startTime,
+                                                                                TimeUnit.MILLISECONDS
+                                                                )
+                                        } else {
+                                                DataPoint.builder(dataSource)
+                                                                .setTimeInterval(
+                                                                                startTime,
+                                                                                endTime,
+                                                                                TimeUnit.MILLISECONDS
+                                                                )
+                                        }
+
+                        builder.setField(HealthFields.FIELD_SUPPLEMENTAL_OXYGEN_FLOW_RATE, flowRate)
+                        builder.setField(HealthFields.FIELD_OXYGEN_SATURATION, saturation)
+
+                        val dataPoint = builder.build()
+                        val dataSet = DataSet.builder(dataSource).add(dataPoint).build()
+
+                        val fitnessOptions = typesBuilder.build()
+                
                         val googleSignInAccount =
                                         GoogleSignIn.getAccountForExtension(
                                                         context!!.applicationContext,
@@ -1111,8 +1156,14 @@ class HealthPlugin(private var channel: MethodChannel? = null) :
                                                                         "There was an error adding the blood oxygen data!",
                                                         ),
                                         )
-                } catch (e3: Exception) {
-                        result.success(false)
+                } catch (e: Exception) {
+                        if (e.message?.contains("API call quota exceeded") == true) {
+                                Log.w("FLUTTER_HEALTH::ERROR", "API call quota exceeded. Please try again later.")
+                                result.success(false)
+                        } else {
+                                Log.w("FLUTTER_HEALTH::ERROR", "unable to return writeBloodOxygen")
+                                result.success(false)
+                        }
                 }
         }
 
@@ -1127,150 +1178,150 @@ class HealthPlugin(private var channel: MethodChannel? = null) :
                         return
                 }
 
-                val type = call.argument<String>("activityType")!!
-                val startTime = call.argument<Long>("startTime")!!
-                val endTime = call.argument<Long>("endTime")!!
-                val totalEnergyBurned = call.argument<Int>("totalEnergyBurned")
-                val totalDistance = call.argument<Int>("totalDistance")
-
-                val activityType = getActivityType(type)
-                // Create the Activity Segment DataSource
-                val activitySegmentDataSource =
-                                DataSource.Builder()
-                                                .setAppPackageName(context!!.packageName)
-                                                .setDataType(DataType.TYPE_ACTIVITY_SEGMENT)
-                                                .setStreamName("FLUTTER_HEALTH - Activity")
-                                                .setType(DataSource.TYPE_RAW)
-                                                .build()
-                // Create the Activity Segment
-                val activityDataPoint =
-                                DataPoint.builder(activitySegmentDataSource)
-                                                .setTimeInterval(
-                                                                startTime,
-                                                                endTime,
-                                                                TimeUnit.MILLISECONDS
-                                                )
-                                                .setActivityField(
-                                                                Field.FIELD_ACTIVITY,
-                                                                activityType
-                                                )
-                                                .build()
-                // Add DataPoint to DataSet
-                val activitySegments =
-                                DataSet.builder(activitySegmentDataSource)
-                                                .add(activityDataPoint)
-                                                .build()
-
-                // If distance is provided
-                var distanceDataSet: DataSet? = null
-                if (totalDistance != null) {
-                        // Create a data source
-                        val distanceDataSource =
-                                        DataSource.Builder()
-                                                        .setAppPackageName(context!!.packageName)
-                                                        .setDataType(DataType.TYPE_DISTANCE_DELTA)
-                                                        .setStreamName("FLUTTER_HEALTH - Distance")
-                                                        .setType(DataSource.TYPE_RAW)
-                                                        .build()
-
-                        val distanceDataPoint =
-                                        DataPoint.builder(distanceDataSource)
-                                                        .setTimeInterval(
-                                                                        startTime,
-                                                                        endTime,
-                                                                        TimeUnit.MILLISECONDS
-                                                        )
-                                                        .setField(
-                                                                        Field.FIELD_DISTANCE,
-                                                                        totalDistance.toFloat()
-                                                        )
-                                                        .build()
-                        // Create a data set
-                        distanceDataSet =
-                                        DataSet.builder(distanceDataSource)
-                                                        .add(distanceDataPoint)
-                                                        .build()
-                }
-                // If energyBurned is provided
-                var energyDataSet: DataSet? = null
-                if (totalEnergyBurned != null) {
-                        // Create a data source
-                        val energyDataSource =
-                                        DataSource.Builder()
-                                                        .setAppPackageName(context!!.packageName)
-                                                        .setDataType(
-                                                                        DataType.TYPE_CALORIES_EXPENDED
-                                                        )
-                                                        .setStreamName("FLUTTER_HEALTH - Calories")
-                                                        .setType(DataSource.TYPE_RAW)
-                                                        .build()
-
-                        val energyDataPoint =
-                                        DataPoint.builder(energyDataSource)
-                                                        .setTimeInterval(
-                                                                        startTime,
-                                                                        endTime,
-                                                                        TimeUnit.MILLISECONDS
-                                                        )
-                                                        .setField(
-                                                                        Field.FIELD_CALORIES,
-                                                                        totalEnergyBurned.toFloat()
-                                                        )
-                                                        .build()
-                        // Create a data set
-                        energyDataSet =
-                                        DataSet.builder(energyDataSource)
-                                                        .add(energyDataPoint)
-                                                        .build()
-                }
-
-                // Finish session setup
-                val session =
-                                Session.Builder()
-                                                .setName(
-                                                                activityType
-                                                ) // TODO: Make a sensible name / allow user to set
-                                                // name
-                                                .setDescription("")
-                                                .setIdentifier(UUID.randomUUID().toString())
-                                                .setActivity(activityType)
-                                                .setStartTime(startTime, TimeUnit.MILLISECONDS)
-                                                .setEndTime(endTime, TimeUnit.MILLISECONDS)
-                                                .build()
-                // Build a session and add the values provided
-                val sessionInsertRequestBuilder =
-                                SessionInsertRequest.Builder()
-                                                .setSession(session)
-                                                .addDataSet(activitySegments)
-                if (totalDistance != null) {
-                        sessionInsertRequestBuilder.addDataSet(distanceDataSet!!)
-                }
-                if (totalEnergyBurned != null) {
-                        sessionInsertRequestBuilder.addDataSet(energyDataSet!!)
-                }
-                val insertRequest = sessionInsertRequestBuilder.build()
-
-                val fitnessOptionsBuilder =
-                                FitnessOptions.builder()
-                                                .addDataType(
-                                                                DataType.TYPE_ACTIVITY_SEGMENT,
-                                                                FitnessOptions.ACCESS_WRITE
-                                                )
-                if (totalDistance != null) {
-                        fitnessOptionsBuilder.addDataType(
-                                        DataType.TYPE_DISTANCE_DELTA,
-                                        FitnessOptions.ACCESS_WRITE,
-                        )
-                }
-                if (totalEnergyBurned != null) {
-                        fitnessOptionsBuilder.addDataType(
-                                        DataType.TYPE_CALORIES_EXPENDED,
-                                        FitnessOptions.ACCESS_WRITE,
-                        )
-                }
-                val fitnessOptions = fitnessOptionsBuilder.build()
-
                 try {
+                        val type = call.argument<String>("activityType")!!
+                        val startTime = call.argument<Long>("startTime")!!
+                        val endTime = call.argument<Long>("endTime")!!
+                        val totalEnergyBurned = call.argument<Int>("totalEnergyBurned")
+                        val totalDistance = call.argument<Int>("totalDistance")
+
+                        val activityType = getActivityType(type)
+                        // Create the Activity Segment DataSource
+                        val activitySegmentDataSource =
+                                        DataSource.Builder()
+                                                        .setAppPackageName(context!!.packageName)
+                                                        .setDataType(DataType.TYPE_ACTIVITY_SEGMENT)
+                                                        .setStreamName("FLUTTER_HEALTH - Activity")
+                                                        .setType(DataSource.TYPE_RAW)
+                                                        .build()
+                        // Create the Activity Segment
+                        val activityDataPoint =
+                                        DataPoint.builder(activitySegmentDataSource)
+                                                        .setTimeInterval(
+                                                                        startTime,
+                                                                        endTime,
+                                                                        TimeUnit.MILLISECONDS
+                                                        )
+                                                        .setActivityField(
+                                                                        Field.FIELD_ACTIVITY,
+                                                                        activityType
+                                                        )
+                                                        .build()
+                        // Add DataPoint to DataSet
+                        val activitySegments =
+                                        DataSet.builder(activitySegmentDataSource)
+                                                        .add(activityDataPoint)
+                                                        .build()
+
+                        // If distance is provided
+                        var distanceDataSet: DataSet? = null
+                        if (totalDistance != null) {
+                                // Create a data source
+                                val distanceDataSource =
+                                                DataSource.Builder()
+                                                                .setAppPackageName(context!!.packageName)
+                                                                .setDataType(DataType.TYPE_DISTANCE_DELTA)
+                                                                .setStreamName("FLUTTER_HEALTH - Distance")
+                                                                .setType(DataSource.TYPE_RAW)
+                                                                .build()
+
+                                val distanceDataPoint =
+                                                DataPoint.builder(distanceDataSource)
+                                                                .setTimeInterval(
+                                                                                startTime,
+                                                                                endTime,
+                                                                                TimeUnit.MILLISECONDS
+                                                                )
+                                                                .setField(
+                                                                                Field.FIELD_DISTANCE,
+                                                                                totalDistance.toFloat()
+                                                                )
+                                                                .build()
+                                // Create a data set
+                                distanceDataSet =
+                                                DataSet.builder(distanceDataSource)
+                                                                .add(distanceDataPoint)
+                                                                .build()
+                        }
+                        // If energyBurned is provided
+                        var energyDataSet: DataSet? = null
+                        if (totalEnergyBurned != null) {
+                                // Create a data source
+                                val energyDataSource =
+                                                DataSource.Builder()
+                                                                .setAppPackageName(context!!.packageName)
+                                                                .setDataType(
+                                                                                DataType.TYPE_CALORIES_EXPENDED
+                                                                )
+                                                                .setStreamName("FLUTTER_HEALTH - Calories")
+                                                                .setType(DataSource.TYPE_RAW)
+                                                                .build()
+
+                                val energyDataPoint =
+                                                DataPoint.builder(energyDataSource)
+                                                                .setTimeInterval(
+                                                                                startTime,
+                                                                                endTime,
+                                                                                TimeUnit.MILLISECONDS
+                                                                )
+                                                                .setField(
+                                                                                Field.FIELD_CALORIES,
+                                                                                totalEnergyBurned.toFloat()
+                                                                )
+                                                                .build()
+                                // Create a data set
+                                energyDataSet =
+                                                DataSet.builder(energyDataSource)
+                                                                .add(energyDataPoint)
+                                                                .build()
+                        }
+
+                        // Finish session setup
+                        val session =
+                                        Session.Builder()
+                                                        .setName(
+                                                                        activityType
+                                                        ) // TODO: Make a sensible name / allow user to set
+                                                        // name
+                                                        .setDescription("")
+                                                        .setIdentifier(UUID.randomUUID().toString())
+                                                        .setActivity(activityType)
+                                                        .setStartTime(startTime, TimeUnit.MILLISECONDS)
+                                                        .setEndTime(endTime, TimeUnit.MILLISECONDS)
+                                                        .build()
+                        // Build a session and add the values provided
+                        val sessionInsertRequestBuilder =
+                                        SessionInsertRequest.Builder()
+                                                        .setSession(session)
+                                                        .addDataSet(activitySegments)
+                        if (totalDistance != null) {
+                                sessionInsertRequestBuilder.addDataSet(distanceDataSet!!)
+                        }
+                        if (totalEnergyBurned != null) {
+                                sessionInsertRequestBuilder.addDataSet(energyDataSet!!)
+                        }
+                        val insertRequest = sessionInsertRequestBuilder.build()
+
+                        val fitnessOptionsBuilder =
+                                        FitnessOptions.builder()
+                                                        .addDataType(
+                                                                        DataType.TYPE_ACTIVITY_SEGMENT,
+                                                                        FitnessOptions.ACCESS_WRITE
+                                                        )
+                        if (totalDistance != null) {
+                                fitnessOptionsBuilder.addDataType(
+                                                DataType.TYPE_DISTANCE_DELTA,
+                                                FitnessOptions.ACCESS_WRITE,
+                                )
+                        }
+                        if (totalEnergyBurned != null) {
+                                fitnessOptionsBuilder.addDataType(
+                                                DataType.TYPE_CALORIES_EXPENDED,
+                                                FitnessOptions.ACCESS_WRITE,
+                                )
+                        }
+                        val fitnessOptions = fitnessOptionsBuilder.build()
+
                         val googleSignInAccount =
                                         GoogleSignIn.getAccountForExtension(
                                                         context!!.applicationContext,
@@ -1295,222 +1346,248 @@ class HealthPlugin(private var channel: MethodChannel? = null) :
                                                         )
                                         )
                 } catch (e: Exception) {
-                        result.success(false)
+                        if (e.message?.contains("API call quota exceeded") == true) {
+                                Log.w("FLUTTER_HEALTH::ERROR", "API call quota exceeded. Please try again later.")
+                                result.success(false)
+                        } else {
+                                Log.w("FLUTTER_HEALTH::ERROR", "unable to return writeWorkoutData")
+                                result.success(false)
+                        }
                 }
         }
 
         /** Get all datapoints of the DataType within the given time range */
         private fun getData(call: MethodCall, result: Result) {
-                if (useHealthConnectIfAvailable && healthConnectAvailable) {
-                        getHCData(call, result)
-                        return
-                }
+                try {
+                        if (useHealthConnectIfAvailable && healthConnectAvailable) {
+                                getHCData(call, result)
+                                return
+                        }
 
-                if (context == null) {
-                        result.success(null)
-                        return
-                }
+                        if (context == null) {
+                                result.success(null)
+                                return
+                        }
 
-                val type = call.argument<String>("dataTypeKey")!!
-                val startTime = call.argument<Long>("startTime")!!
-                val endTime = call.argument<Long>("endTime")!!
-                val includeManualEntry = call.argument<Boolean>("includeManualEntry")!!
-                // Look up data type and unit for the type key
-                val dataType = keyToHealthDataType(type)
-                val field = getField(type)
-                val typesBuilder = FitnessOptions.builder()
-                typesBuilder.addDataType(dataType)
+                        val type = call.argument<String>("dataTypeKey")!!
+                        val startTime = call.argument<Long>("startTime")!!
+                        val endTime = call.argument<Long>("endTime")!!
+                        val includeManualEntry = call.argument<Boolean>("includeManualEntry")!!
+                        // Look up data type and unit for the type key
+                        val dataType = keyToHealthDataType(type)
+                        val field = getField(type)
+                        val typesBuilder = FitnessOptions.builder()
+                        typesBuilder.addDataType(dataType)
 
-                // Add special cases for accessing workouts or sleep data.
-                if (dataType == DataType.TYPE_SLEEP_SEGMENT) {
-                        typesBuilder.accessSleepSessions(FitnessOptions.ACCESS_READ)
-                } else if (dataType == DataType.TYPE_ACTIVITY_SEGMENT) {
-                        typesBuilder.accessActivitySessions(FitnessOptions.ACCESS_READ)
-                                        .addDataType(
-                                                        DataType.TYPE_CALORIES_EXPENDED,
-                                                        FitnessOptions.ACCESS_READ
-                                        )
-                                        .addDataType(
-                                                        DataType.TYPE_DISTANCE_DELTA,
-                                                        FitnessOptions.ACCESS_READ
-                                        )
-                }
-                val fitnessOptions = typesBuilder.build()
-                val googleSignInAccount =
-                                GoogleSignIn.getAccountForExtension(
-                                                context!!.applicationContext,
-                                                fitnessOptions
-                                )
-                // Handle data types
-                when (dataType) {
-                        DataType.TYPE_SLEEP_SEGMENT -> {
-                                // request to the sessions for sleep data
-                                val request =
-                                                SessionReadRequest.Builder()
-                                                                .setTimeInterval(
-                                                                                startTime,
-                                                                                endTime,
-                                                                                TimeUnit.MILLISECONDS
-                                                                )
-                                                                .enableServerQueries()
-                                                                .readSessionsFromAllApps()
-                                                                .includeSleepSessions()
-                                                                .build()
-                                Fitness.getSessionsClient(
-                                                                context!!.applicationContext,
-                                                                googleSignInAccount
+                        // Add special cases for accessing workouts or sleep data.
+                        if (dataType == DataType.TYPE_SLEEP_SEGMENT) {
+                                typesBuilder.accessSleepSessions(FitnessOptions.ACCESS_READ)
+                        } else if (dataType == DataType.TYPE_ACTIVITY_SEGMENT) {
+                                typesBuilder.accessActivitySessions(FitnessOptions.ACCESS_READ)
+                                                .addDataType(
+                                                                DataType.TYPE_CALORIES_EXPENDED,
+                                                                FitnessOptions.ACCESS_READ
                                                 )
-                                                .readSession(request)
-                                                .addOnSuccessListener(
-                                                                threadPoolExecutor!!,
-                                                                sleepDataHandler(type, result)
-                                                )
-                                                .addOnFailureListener(
-                                                                errHandler(
-                                                                                result,
-                                                                                "There was an error getting the sleeping data!",
-                                                                ),
+                                                .addDataType(
+                                                                DataType.TYPE_DISTANCE_DELTA,
+                                                                FitnessOptions.ACCESS_READ
                                                 )
                         }
-                        DataType.TYPE_ACTIVITY_SEGMENT -> {
-                                val readRequest: SessionReadRequest
-                                val readRequestBuilder =
-                                                SessionReadRequest.Builder()
-                                                                .setTimeInterval(
-                                                                                startTime,
-                                                                                endTime,
-                                                                                TimeUnit.MILLISECONDS
-                                                                )
-                                                                .enableServerQueries()
-                                                                .readSessionsFromAllApps()
-                                                                .includeActivitySessions()
-                                                                .read(dataType)
-                                                                .read(
-                                                                                DataType.TYPE_CALORIES_EXPENDED
-                                                                )
-
-                                // If fine location is enabled, read distance data
-                                if (ContextCompat.checkSelfPermission(
-                                                                context!!.applicationContext,
-                                                                android.Manifest.permission
-                                                                                .ACCESS_FINE_LOCATION,
-                                                ) == PackageManager.PERMISSION_GRANTED
-                                ) {
-                                        readRequestBuilder.read(DataType.TYPE_DISTANCE_DELTA)
+                        val fitnessOptions = typesBuilder.build()
+                        val googleSignInAccount =
+                                        GoogleSignIn.getAccountForExtension(
+                                                        context!!.applicationContext,
+                                                        fitnessOptions
+                                        )
+                        // Handle data types
+                        when (dataType) {
+                                DataType.TYPE_SLEEP_SEGMENT -> {
+                                        // request to the sessions for sleep data
+                                        val request =
+                                                        SessionReadRequest.Builder()
+                                                                        .setTimeInterval(
+                                                                                        startTime,
+                                                                                        endTime,
+                                                                                        TimeUnit.MILLISECONDS
+                                                                        )
+                                                                        .enableServerQueries()
+                                                                        .readSessionsFromAllApps()
+                                                                        .includeSleepSessions()
+                                                                        .build()
+                                        Fitness.getSessionsClient(
+                                                                        context!!.applicationContext,
+                                                                        googleSignInAccount
+                                                        )
+                                                        .readSession(request)
+                                                        .addOnSuccessListener(
+                                                                        threadPoolExecutor!!,
+                                                                        sleepDataHandler(type, result)
+                                                        )
+                                                        .addOnFailureListener(
+                                                                        errHandler(
+                                                                                        result,
+                                                                                        "There was an error getting the sleeping data!",
+                                                                        ),
+                                                        )
                                 }
-                                readRequest = readRequestBuilder.build()
-                                Fitness.getSessionsClient(
-                                                                context!!.applicationContext,
-                                                                googleSignInAccount
-                                                )
-                                                .readSession(readRequest)
-                                                .addOnSuccessListener(
-                                                                threadPoolExecutor!!,
-                                                                workoutDataHandler(type, result)
-                                                )
-                                                .addOnFailureListener(
-                                                                errHandler(
-                                                                                result,
-                                                                                "There was an error getting the workout data!",
-                                                                ),
-                                                )
+                                DataType.TYPE_ACTIVITY_SEGMENT -> {
+                                        val readRequest: SessionReadRequest
+                                        val readRequestBuilder =
+                                                        SessionReadRequest.Builder()
+                                                                        .setTimeInterval(
+                                                                                        startTime,
+                                                                                        endTime,
+                                                                                        TimeUnit.MILLISECONDS
+                                                                        )
+                                                                        .enableServerQueries()
+                                                                        .readSessionsFromAllApps()
+                                                                        .includeActivitySessions()
+                                                                        .read(dataType)
+                                                                        .read(
+                                                                                        DataType.TYPE_CALORIES_EXPENDED
+                                                                        )
+
+                                        // If fine location is enabled, read distance data
+                                        if (ContextCompat.checkSelfPermission(
+                                                                        context!!.applicationContext,
+                                                                        android.Manifest.permission
+                                                                                        .ACCESS_FINE_LOCATION,
+                                                        ) == PackageManager.PERMISSION_GRANTED
+                                        ) {
+                                                readRequestBuilder.read(DataType.TYPE_DISTANCE_DELTA)
+                                        }
+                                        readRequest = readRequestBuilder.build()
+                                        Fitness.getSessionsClient(
+                                                                        context!!.applicationContext,
+                                                                        googleSignInAccount
+                                                        )
+                                                        .readSession(readRequest)
+                                                        .addOnSuccessListener(
+                                                                        threadPoolExecutor!!,
+                                                                        workoutDataHandler(type, result)
+                                                        )
+                                                        .addOnFailureListener(
+                                                                        errHandler(
+                                                                                        result,
+                                                                                        "There was an error getting the workout data!",
+                                                                        ),
+                                                        )
+                                }
+                                else -> {
+                                        Fitness.getHistoryClient(
+                                                                        context!!.applicationContext,
+                                                                        googleSignInAccount
+                                                        )
+                                                        .readData(
+                                                                        DataReadRequest.Builder()
+                                                                                        .read(dataType)
+                                                                                        .setTimeRange(
+                                                                                                        startTime,
+                                                                                                        endTime,
+                                                                                                        TimeUnit.MILLISECONDS
+                                                                                        )
+                                                                                        .build(),
+                                                        )
+                                                        .addOnSuccessListener(
+                                                                        threadPoolExecutor!!,
+                                                                        dataHandler(
+                                                                                        dataType,
+                                                                                        field,
+                                                                                        includeManualEntry,
+                                                                                        result
+                                                                        ),
+                                                        )
+                                                        .addOnFailureListener(
+                                                                        errHandler(
+                                                                                        result,
+                                                                                        "There was an error getting the data!",
+                                                                        ),
+                                                        )
+                                }
                         }
-                        else -> {
-                                Fitness.getHistoryClient(
-                                                                context!!.applicationContext,
-                                                                googleSignInAccount
-                                                )
-                                                .readData(
-                                                                DataReadRequest.Builder()
-                                                                                .read(dataType)
-                                                                                .setTimeRange(
-                                                                                                startTime,
-                                                                                                endTime,
-                                                                                                TimeUnit.MILLISECONDS
-                                                                                )
-                                                                                .build(),
-                                                )
-                                                .addOnSuccessListener(
-                                                                threadPoolExecutor!!,
-                                                                dataHandler(
-                                                                                dataType,
-                                                                                field,
-                                                                                includeManualEntry,
-                                                                                result
-                                                                ),
-                                                )
-                                                .addOnFailureListener(
-                                                                errHandler(
-                                                                                result,
-                                                                                "There was an error getting the data!",
-                                                                ),
-                                                )
+                } catch (e: Exception) {
+                        if (e.message?.contains("API call quota exceeded") == true) {
+                                Log.w("FLUTTER_HEALTH::ERROR", "API call quota exceeded. Please try again later.")
+                                Handler(context!!.mainLooper).run { result.success(null) }
+                        } else {
+                                Log.w("FLUTTER_HEALTH::ERROR", "unable to return getData")
+                                Handler(context!!.mainLooper).run { result.success(null) }
                         }
                 }
         }
 
         private fun getIntervalData(call: MethodCall, result: Result) {
-                if (useHealthConnectIfAvailable && healthConnectAvailable) {
-                        getAggregateHCData(call, result)
-                        return
+                try {
+                        if (useHealthConnectIfAvailable && healthConnectAvailable) {
+                                getAggregateHCData(call, result)
+                                return
+                        }
+
+                        if (context == null) {
+                                result.success(null)
+                                return
+                        }
+
+                        val type = call.argument<String>("dataTypeKey")!!
+                        val startTime = call.argument<Long>("startTime")!!
+                        val endTime = call.argument<Long>("endTime")!!
+                        val interval = call.argument<Int>("interval")!!
+                        val includeManualEntry = call.argument<Boolean>("includeManualEntry")!!
+
+                        // Look up data type and unit for the type key
+                        val dataType = keyToHealthDataType(type)
+                        val field = getField(type)
+                        val typesBuilder = FitnessOptions.builder()
+                        typesBuilder.addDataType(dataType)
+                        if (dataType == DataType.TYPE_SLEEP_SEGMENT) {
+                                typesBuilder.accessSleepSessions(FitnessOptions.ACCESS_READ)
+                        }
+                        val fitnessOptions = typesBuilder.build()
+                        val googleSignInAccount =
+                                        GoogleSignIn.getAccountForExtension(
+                                                        context!!.applicationContext,
+                                                        fitnessOptions
+                                        )
+
+                        Fitness.getHistoryClient(context!!.applicationContext, googleSignInAccount)
+                                        .readData(
+                                                        DataReadRequest.Builder()
+                                                                        .aggregate(dataType)
+                                                                        .bucketByTime(
+                                                                                        interval,
+                                                                                        TimeUnit.SECONDS
+                                                                        )
+                                                                        .setTimeRange(
+                                                                                        startTime,
+                                                                                        endTime,
+                                                                                        TimeUnit.MILLISECONDS
+                                                                        )
+                                                                        .build()
+                                        )
+                                        .addOnSuccessListener(
+                                                        threadPoolExecutor!!,
+                                                        intervalDataHandler(
+                                                                        dataType,
+                                                                        field,
+                                                                        includeManualEntry,
+                                                                        result
+                                                        )
+                                        )
+                                        .addOnFailureListener(
+                                                        errHandler(
+                                                                        result,
+                                                                        "There was an error getting the interval data!"
+                                                        )
+                                        )
+                } catch (e: Exception) {
+                        if (e.message?.contains("API call quota exceeded") == true) {
+                                Log.w("FLUTTER_HEALTH::ERROR", "API call quota exceeded. Please try again later.")
+                                Handler(context!!.mainLooper).run { result.success(null) }
+                        } else {
+                                Log.w("FLUTTER_HEALTH::ERROR", "unable to return getIntervalData")
+                                Handler(context!!.mainLooper).run { result.success(null) }
+                        }
                 }
-
-                if (context == null) {
-                        result.success(null)
-                        return
-                }
-
-                val type = call.argument<String>("dataTypeKey")!!
-                val startTime = call.argument<Long>("startTime")!!
-                val endTime = call.argument<Long>("endTime")!!
-                val interval = call.argument<Int>("interval")!!
-                val includeManualEntry = call.argument<Boolean>("includeManualEntry")!!
-
-                // Look up data type and unit for the type key
-                val dataType = keyToHealthDataType(type)
-                val field = getField(type)
-                val typesBuilder = FitnessOptions.builder()
-                typesBuilder.addDataType(dataType)
-                if (dataType == DataType.TYPE_SLEEP_SEGMENT) {
-                        typesBuilder.accessSleepSessions(FitnessOptions.ACCESS_READ)
-                }
-                val fitnessOptions = typesBuilder.build()
-                val googleSignInAccount =
-                                GoogleSignIn.getAccountForExtension(
-                                                context!!.applicationContext,
-                                                fitnessOptions
-                                )
-
-                Fitness.getHistoryClient(context!!.applicationContext, googleSignInAccount)
-                                .readData(
-                                                DataReadRequest.Builder()
-                                                                .aggregate(dataType)
-                                                                .bucketByTime(
-                                                                                interval,
-                                                                                TimeUnit.SECONDS
-                                                                )
-                                                                .setTimeRange(
-                                                                                startTime,
-                                                                                endTime,
-                                                                                TimeUnit.MILLISECONDS
-                                                                )
-                                                                .build()
-                                )
-                                .addOnSuccessListener(
-                                                threadPoolExecutor!!,
-                                                intervalDataHandler(
-                                                                dataType,
-                                                                field,
-                                                                includeManualEntry,
-                                                                result
-                                                )
-                                )
-                                .addOnFailureListener(
-                                                errHandler(
-                                                                result,
-                                                                "There was an error getting the interval data!"
-                                                )
-                                )
         }
 
         private fun getAggregateData(call: MethodCall, result: Result) {
@@ -2138,24 +2215,34 @@ class HealthPlugin(private var channel: MethodChannel? = null) :
         }
 
         private fun hasPermissions(call: MethodCall, result: Result) {
-                if (useHealthConnectIfAvailable && healthConnectAvailable) {
-                        hasPermissionsHC(call, result)
-                        return
+                try {
+                        if (useHealthConnectIfAvailable && healthConnectAvailable) {
+                                hasPermissionsHC(call, result)
+                                return
+                        }
+                        if (context == null) {
+                                result.success(false)
+                                return
+                        }
+
+                        val optionsToRegister = callToHealthTypes(call)
+
+                        val isGranted =
+                                        GoogleSignIn.hasPermissions(
+                                                        GoogleSignIn.getLastSignedInAccount(context!!),
+                                                        optionsToRegister,
+                                        )
+
+                        result?.success(isGranted)
+                } catch (e: Exception) {
+                        if (e.message?.contains("API call quota exceeded") == true) {
+                                Log.w("FLUTTER_HEALTH::ERROR", "API call quota exceeded. Please try again later.")
+                                Handler(context!!.mainLooper).run { result.success(false) }
+                        } else {
+                                Log.w("FLUTTER_HEALTH::ERROR", "unable to return hasPermissions")
+                                Handler(context!!.mainLooper).run { result.success(false) }
+                        }
                 }
-                if (context == null) {
-                        result.success(false)
-                        return
-                }
-
-                val optionsToRegister = callToHealthTypes(call)
-
-                val isGranted =
-                                GoogleSignIn.hasPermissions(
-                                                GoogleSignIn.getLastSignedInAccount(context!!),
-                                                optionsToRegister,
-                                )
-
-                result?.success(isGranted)
         }
 
         /**
@@ -2163,33 +2250,43 @@ class HealthPlugin(private var channel: MethodChannel? = null) :
          * type.
          */
         private fun requestAuthorization(call: MethodCall, result: Result) {
-                if (context == null) {
-                        result.success(false)
-                        return
-                }
-                mResult = result
+                try {
+                        if (context == null) {
+                                result.success(false)
+                                return
+                        }
+                        mResult = result
 
-                if (useHealthConnectIfAvailable && healthConnectAvailable) {
-                        requestAuthorizationHC(call, result)
-                        return
-                }
+                        if (useHealthConnectIfAvailable && healthConnectAvailable) {
+                                requestAuthorizationHC(call, result)
+                                return
+                        }
 
-                val optionsToRegister = callToHealthTypes(call)
+                        val optionsToRegister = callToHealthTypes(call)
 
-                // Set to false due to bug described in
-                // https://github.com/cph-cachet/flutter-plugins/issues/640#issuecomment-1366830132
-                val isGranted = false
+                        // Set to false due to bug described in
+                        // https://github.com/cph-cachet/flutter-plugins/issues/640#issuecomment-1366830132
+                        val isGranted = false
 
-                // If not granted then ask for permission
-                if (!isGranted && activity != null) {
-                        GoogleSignIn.requestPermissions(
-                                        activity!!,
-                                        GOOGLE_FIT_PERMISSIONS_REQUEST_CODE,
-                                        GoogleSignIn.getLastSignedInAccount(context!!),
-                                        optionsToRegister,
-                        )
-                } else { // / Permission already granted
-                        result?.success(true)
+                        // If not granted then ask for permission
+                        if (!isGranted && activity != null) {
+                                GoogleSignIn.requestPermissions(
+                                                activity!!,
+                                                GOOGLE_FIT_PERMISSIONS_REQUEST_CODE,
+                                                GoogleSignIn.getLastSignedInAccount(context!!),
+                                                optionsToRegister,
+                                )
+                        } else { // / Permission already granted
+                                result?.success(true)
+                        }
+                } catch (e: Exception) {
+                        if (e.message?.contains("API call quota exceeded") == true) {
+                                Log.w("FLUTTER_HEALTH::ERROR", "API call quota exceeded. Please try again later.")
+                                Handler(context!!.mainLooper).run { result.success(false) }
+                        } else {
+                                Log.w("FLUTTER_HEALTH::ERROR", "unable to return requestAuthorization")
+                                Handler(context!!.mainLooper).run { result.success(false) }
+                        }
                 }
         }
 
@@ -2228,63 +2325,75 @@ class HealthPlugin(private var channel: MethodChannel? = null) :
         }
 
         private fun getTotalStepsInInterval(call: MethodCall, result: Result) {
-                val start = call.argument<Long>("startTime")!!
-                val end = call.argument<Long>("endTime")!!
+                try {
+                        val start = call.argument<Long>("startTime")!!
+                        val end = call.argument<Long>("endTime")!!
 
-                if (useHealthConnectIfAvailable && healthConnectAvailable) {
-                        getStepsHealthConnect(start, end, result)
-                        return
+                        if (useHealthConnectIfAvailable && healthConnectAvailable) {
+                                getStepsHealthConnect(start, end, result)
+                                return
+                        }
+
+                        val context = context ?: return
+
+                        val stepsDataType = keyToHealthDataType(STEPS)
+                        val aggregatedDataType = keyToHealthDataType(AGGREGATE_STEP_COUNT)
+
+                        val fitnessOptions =
+                                        FitnessOptions.builder()
+                                                        .addDataType(stepsDataType)
+                                                        .addDataType(aggregatedDataType)
+                                                        .build()
+                        val gsa = GoogleSignIn.getAccountForExtension(context, fitnessOptions)
+
+                        val ds =
+                                        DataSource.Builder()
+                                                        .setAppPackageName("com.google.android.gms")
+                                                        .setDataType(stepsDataType)
+                                                        .setType(DataSource.TYPE_DERIVED)
+                                                        .setStreamName("estimated_steps")
+                                                        .build()
+
+                        val duration = (end - start).toInt()
+
+                        val request =
+                                        DataReadRequest.Builder()
+                                                        .aggregate(ds)
+                                                        .bucketByTime(duration, TimeUnit.MILLISECONDS)
+                                                        .setTimeRange(start, end, TimeUnit.MILLISECONDS)
+                                                        .build()
+
+                        Fitness.getHistoryClient(context, gsa)
+                                        .readData(request)
+                                        .addOnFailureListener(
+                                                        errHandler(
+                                                                        result,
+                                                                        "There was an error getting the total steps in the interval!",
+                                                        ),
+                                        )
+                                        .addOnSuccessListener(
+                                                        threadPoolExecutor!!,
+                                                        getStepsInRange(
+                                                                        start,
+                                                                        end,
+                                                                        aggregatedDataType,
+                                                                        result
+                                                        ),
+                                        )
+                } catch (e: Exception) {
+                        if (e.message?.contains("API call quota exceeded") == true) {
+                                Log.w("FLUTTER_HEALTH::ERROR", "API call quota exceeded. Please try again later.")
+                                Handler(context!!.mainLooper).run { result.success(null) }
+                        } else {
+                                Log.w("FLUTTER_HEALTH::ERROR", "unable to return getTotalStepsInInterval")
+                                Handler(context!!.mainLooper).run { result.success(null) }
+                        }
                 }
-
-                val context = context ?: return
-
-                val stepsDataType = keyToHealthDataType(STEPS)
-                val aggregatedDataType = keyToHealthDataType(AGGREGATE_STEP_COUNT)
-
-                val fitnessOptions =
-                                FitnessOptions.builder()
-                                                .addDataType(stepsDataType)
-                                                .addDataType(aggregatedDataType)
-                                                .build()
-                val gsa = GoogleSignIn.getAccountForExtension(context, fitnessOptions)
-
-                val ds =
-                                DataSource.Builder()
-                                                .setAppPackageName("com.google.android.gms")
-                                                .setDataType(stepsDataType)
-                                                .setType(DataSource.TYPE_DERIVED)
-                                                .setStreamName("estimated_steps")
-                                                .build()
-
-                val duration = (end - start).toInt()
-
-                val request =
-                                DataReadRequest.Builder()
-                                                .aggregate(ds)
-                                                .bucketByTime(duration, TimeUnit.MILLISECONDS)
-                                                .setTimeRange(start, end, TimeUnit.MILLISECONDS)
-                                                .build()
-
-                Fitness.getHistoryClient(context, gsa)
-                                .readData(request)
-                                .addOnFailureListener(
-                                                errHandler(
-                                                                result,
-                                                                "There was an error getting the total steps in the interval!",
-                                                ),
-                                )
-                                .addOnSuccessListener(
-                                                threadPoolExecutor!!,
-                                                getStepsInRange(
-                                                                start,
-                                                                end,
-                                                                aggregatedDataType,
-                                                                result
-                                                ),
-                                )
         }
 
-        private fun getStepsHealthConnect(start: Long, end: Long, result: Result) =
+        private fun getStepsHealthConnect(start: Long, end: Long, result: Result) {
+                /// Redundant, but just to be sure (Paranoia)
+                try {
                         scope.launch {
                                 try {
                                         val startInstant = Instant.ofEpochMilli(start)
@@ -2313,10 +2422,25 @@ class HealthPlugin(private var channel: MethodChannel? = null) :
                                         )
                                         result.success(stepsInInterval)
                                 } catch (e: Exception) {
-                                        Log.i("FLUTTER_HEALTH::ERROR", "unable to return steps")
-                                        result.success(null)
+                                        if (e.message?.contains("API call quota exceeded") == true) {
+                                                Log.w("FLUTTER_HEALTH::ERROR", "API call quota exceeded. Please try again later.")
+                                                result.success(null)
+                                        } else {
+                                                Log.w("FLUTTER_HEALTH::ERROR", "unable to return getStepsHealthConnect")
+                                                result.success(null)
+                                        }
                                 }
                         }
+                } catch (e: Exception) {
+                        if (e.message?.contains("API call quota exceeded") == true) {
+                                Log.w("FLUTTER_HEALTH::ERROR", "API call quota exceeded. Please try again later.")
+                                result.success(null)
+                        } else {
+                                Log.w("FLUTTER_HEALTH::ERROR", "unable to return getStepsHealthConnect")
+                                result.success(null)
+                        }
+                }
+        }
 
         private fun getStepsInRange(
                         start: Long,
@@ -2341,7 +2465,7 @@ class HealthPlugin(private var channel: MethodChannel? = null) :
                         } else {
                                 val startDay = Date(start)
                                 val endDay = Date(end)
-                                Log.i("FLUTTER_HEALTH::ERROR", "no steps for $startDay - $endDay")
+                                Log.w("FLUTTER_HEALTH::ERROR", "no steps for $startDay - $endDay")
                         }
                 }
 
@@ -2466,89 +2590,129 @@ class HealthPlugin(private var channel: MethodChannel? = null) :
         }
 
         private fun getHealthConnectSdkStatus(call: MethodCall, result: Result) {
-                checkAvailability()
-                if (healthConnectAvailable) {
-                    healthConnectClient =
-                        HealthConnectClient.getOrCreate(
-                            context!!
-                        )
+                try {
+                        checkAvailability()
+                        if (healthConnectAvailable) {
+                                try {
+                                        healthConnectClient = HealthConnectClient.getOrCreate(context!!)
+                                } catch (e: Exception) {
+                                        if (e.message?.contains("API call quota exceeded") == true) {
+                                                Log.w("FLUTTER_HEALTH::ERROR", "API call quota exceeded. Please try again later.")
+                                                result.success(healthConnectStatus)
+                                                return
+                                        } else {
+                                                Log.w("FLUTTER_HEALTH::ERROR", "unable to return getHealthConnectSdkStatus")
+                                                result.success(healthConnectStatus)
+                                                return
+                                        }
+                                }
+                        }
+                        result.success(healthConnectStatus)
+                } catch (e: Exception) {
+                        if (e.message?.contains("API call quota exceeded") == true) {
+                                Log.w("FLUTTER_HEALTH::ERROR", "API call quota exceeded. Please try again later.")
+                                result.success(healthConnectStatus)
+                        } else {
+                                Log.w("FLUTTER_HEALTH::ERROR", "unable to return getHealthConnectSdkStatus")
+                                result.success(healthConnectStatus)
+                        }
                 }
-                result.success(healthConnectStatus)
+                
         }
 
         private fun hasPermissionsHC(call: MethodCall, result: Result) {
-                val args = call.arguments as HashMap<*, *>
-                val types = (args["types"] as? ArrayList<*>)?.filterIsInstance<String>()!!
-                val permissions = (args["permissions"] as? ArrayList<*>)?.filterIsInstance<Int>()!!
+                try {
+                        val args = call.arguments as HashMap<*, *>
+                        val types = (args["types"] as? ArrayList<*>)?.filterIsInstance<String>()!!
+                        val permissions = (args["permissions"] as? ArrayList<*>)?.filterIsInstance<Int>()!!
 
-                var permList = mutableListOf<String>()
-                for ((i, typeKey) in types.withIndex()) {
-                        if (!MapToHCType.containsKey(typeKey)) {
-                                Log.w(
-                                                "FLUTTER_HEALTH::ERROR",
-                                                "Datatype " + typeKey + " not found in HC"
-                                )
-                                result.success(false)
-                                return
-                        }
-                        val access = permissions[i]
-                        val dataType = MapToHCType[typeKey]!!
-                        if (access == 0) {
-                                permList.add(
-                                                HealthPermission.getReadPermission(dataType),
-                                )
-                        } else {
-                                permList.addAll(
-                                                listOf(
-                                                                HealthPermission.getReadPermission(
-                                                                                dataType
-                                                                ),
-                                                                HealthPermission.getWritePermission(
-                                                                                dataType
-                                                                ),
-                                                ),
-                                )
-                        }
-                        // Workout also needs distance and total energy burned too
-                        if (typeKey == WORKOUT) {
+                        var permList = mutableListOf<String>()
+                        for ((i, typeKey) in types.withIndex()) {
+                                if (!MapToHCType.containsKey(typeKey)) {
+                                        Log.w(
+                                                        "FLUTTER_HEALTH::ERROR",
+                                                        "Datatype " + typeKey + " not found in HC"
+                                        )
+                                        result.success(false)
+                                        return
+                                }
+                                val access = permissions[i]
+                                val dataType = MapToHCType[typeKey]!!
                                 if (access == 0) {
-                                        permList.addAll(
-                                                        listOf(
-                                                                        HealthPermission.getReadPermission(
-                                                                                        DistanceRecord::class
-                                                                        ),
-                                                                        HealthPermission.getReadPermission(
-                                                                                        TotalCaloriesBurnedRecord::class
-                                                                        ),
-                                                        ),
+                                        permList.add(
+                                                        HealthPermission.getReadPermission(dataType),
                                         )
                                 } else {
                                         permList.addAll(
                                                         listOf(
                                                                         HealthPermission.getReadPermission(
-                                                                                        DistanceRecord::class
-                                                                        ),
-                                                                        HealthPermission.getReadPermission(
-                                                                                        TotalCaloriesBurnedRecord::class
+                                                                                        dataType
                                                                         ),
                                                                         HealthPermission.getWritePermission(
-                                                                                        DistanceRecord::class
-                                                                        ),
-                                                                        HealthPermission.getWritePermission(
-                                                                                        TotalCaloriesBurnedRecord::class
+                                                                                        dataType
                                                                         ),
                                                         ),
                                         )
                                 }
+                                // Workout also needs distance and total energy burned too
+                                if (typeKey == WORKOUT) {
+                                        if (access == 0) {
+                                                permList.addAll(
+                                                                listOf(
+                                                                                HealthPermission.getReadPermission(
+                                                                                                DistanceRecord::class
+                                                                                ),
+                                                                                HealthPermission.getReadPermission(
+                                                                                                TotalCaloriesBurnedRecord::class
+                                                                                ),
+                                                                ),
+                                                )
+                                        } else {
+                                                permList.addAll(
+                                                                listOf(
+                                                                                HealthPermission.getReadPermission(
+                                                                                                DistanceRecord::class
+                                                                                ),
+                                                                                HealthPermission.getReadPermission(
+                                                                                                TotalCaloriesBurnedRecord::class
+                                                                                ),
+                                                                                HealthPermission.getWritePermission(
+                                                                                                DistanceRecord::class
+                                                                                ),
+                                                                                HealthPermission.getWritePermission(
+                                                                                                TotalCaloriesBurnedRecord::class
+                                                                                ),
+                                                                ),
+                                                )
+                                        }
+                                }
                         }
-                }
-                scope.launch {
-                        result.success(
-                                        healthConnectClient
-                                                        .permissionController
-                                                        .getGrantedPermissions()
-                                                        .containsAll(permList),
-                        )
+                        scope.launch {
+                                try {
+                                        val hasAllPermissions: Boolean = healthConnectClient
+                                            .permissionController
+                                            .getGrantedPermissions()
+                                            .containsAll(permList)
+
+                                        result.success(hasAllPermissions)
+                                } catch (e: Exception) {
+                                        if (e.message?.contains("API call quota exceeded") == true) {
+                                                Log.w("FLUTTER_HEALTH::ERROR", "API call quota exceeded. Please try again later.")
+                                                Handler(context!!.mainLooper).run { result.success(false) }
+                                        } else {
+                                                Log.w("FLUTTER_HEALTH::ERROR", "unable to return hasPermissionsHC")
+                                                Handler(context!!.mainLooper).run { result.success(false) }
+                                        }
+                                }
+                        }
+                } catch (e: Exception) {
+                        if (e.message?.contains("API call quota exceeded") == true) {
+                                Log.w("FLUTTER_HEALTH::ERROR", "API call quota exceeded. Please try again later.")
+                                Handler(context!!.mainLooper).run { result.success(false) }
+                        } else {
+                                Log.w("FLUTTER_HEALTH::ERROR", "unable to return hasPermissionsHC")
+                                Handler(context!!.mainLooper).run { result.success(false) }
+                        }
                 }
         }
 
@@ -2628,209 +2792,261 @@ class HealthPlugin(private var channel: MethodChannel? = null) :
         }
 
         fun getHCData(call: MethodCall, result: Result) {
-                val dataType = call.argument<String>("dataTypeKey")!!
-                val startTime = Instant.ofEpochMilli(call.argument<Long>("startTime")!!)
-                val endTime = Instant.ofEpochMilli(call.argument<Long>("endTime")!!)
-                val healthConnectData = mutableListOf<Map<String, Any?>>()
-                scope.launch {
-                        MapToHCType[dataType]?.let { classType ->
-                                val records = mutableListOf<Record>()
+                try {
+                        val dataType = call.argument<String>("dataTypeKey")!!
+                        val startTime = Instant.ofEpochMilli(call.argument<Long>("startTime")!!)
+                        val endTime = Instant.ofEpochMilli(call.argument<Long>("endTime")!!)
+                        val healthConnectData = mutableListOf<Map<String, Any?>>()
+                        scope.launch {
+                                try {
+                                        MapToHCType[dataType]?.let { classType ->
+                                                val records = mutableListOf<Record>()
 
-                                // Set up the initial request to read health records with specified
-                                // parameters
-                                var request =
-                                                ReadRecordsRequest(
-                                                                recordType = classType,
-                                                                // Define the maximum amount of data
-                                                                // that HealthConnect can return
-                                                                // in a single request
-                                                                timeRangeFilter =
-                                                                                TimeRangeFilter.between(
-                                                                                                startTime,
-                                                                                                endTime
-                                                                                ),
-                                                )
-
-                                var response = healthConnectClient.readRecords(request)
-                                var pageToken = response.pageToken
-
-                                // Add the records from the initial response to the records list
-                                records.addAll(response.records)
-
-                                // Continue making requests and fetching records while there is a
-                                // page token
-                                while (!pageToken.isNullOrEmpty()) {
-                                        request =
-                                                        ReadRecordsRequest(
+                                                try {
+                                                        // Set up the initial request to read health records with specified
+                                                        // parameters
+                                                        var request =
+                                                                ReadRecordsRequest(
                                                                         recordType = classType,
-                                                                        timeRangeFilter =
-                                                                                        TimeRangeFilter.between(
-                                                                                                        startTime,
-                                                                                                        endTime
-                                                                                        ),
-                                                                        pageToken = pageToken
-                                                        )
-                                        response = healthConnectClient.readRecords(request)
-
-                                        pageToken = response.pageToken
-                                        records.addAll(response.records)
-                                }
-
-                                // Workout needs distance and total calories burned too
-                                if (dataType == WORKOUT) {
-                                        for (rec in records) {
-                                                val record = rec as ExerciseSessionRecord
-                                                val distanceRequest =
-                                                                healthConnectClient.readRecords(
-                                                                                ReadRecordsRequest(
-                                                                                                recordType =
-                                                                                                                DistanceRecord::class,
-                                                                                                timeRangeFilter =
-                                                                                                                TimeRangeFilter.between(
-                                                                                                                                record.startTime,
-                                                                                                                                record.endTime,
-                                                                                                                ),
-                                                                                ),
+                                                                        // Define the maximum amount of data
+                                                                        // that HealthConnect can return
+                                                                        // in a single request
+                                                                        timeRangeFilter = TimeRangeFilter.between(startTime, endTime),
                                                                 )
-                                                var totalDistance = 0.0
-                                                for (distanceRec in distanceRequest.records) {
-                                                        totalDistance +=
-                                                                        distanceRec.distance
-                                                                                        .inMeters
-                                                }
 
-                                                val energyBurnedRequest =
-                                                                healthConnectClient.readRecords(
-                                                                                ReadRecordsRequest(
-                                                                                                recordType =
-                                                                                                                TotalCaloriesBurnedRecord::class,
-                                                                                                timeRangeFilter =
-                                                                                                                TimeRangeFilter.between(
-                                                                                                                                record.startTime,
-                                                                                                                                record.endTime,
-                                                                                                                ),
-                                                                                ),
-                                                                )
-                                                var totalEnergyBurned = 0.0
-                                                for (energyBurnedRec in
-                                                                energyBurnedRequest.records) {
-                                                        totalEnergyBurned +=
-                                                                        energyBurnedRec.energy
-                                                                                        .inKilocalories
-                                                }
+                                                        var response = healthConnectClient.readRecords(request)
 
-                                                val stepRequest =
-                                                                healthConnectClient.readRecords(
-                                                                                ReadRecordsRequest(
-                                                                                                recordType =
-                                                                                                                StepsRecord::class,
-                                                                                                timeRangeFilter =
-                                                                                                                TimeRangeFilter.between(
-                                                                                                                                record.startTime,
-                                                                                                                                record.endTime
-                                                                                                                ),
-                                                                                ),
-                                                                )
-                                                var totalSteps = 0.0
-                                                for (stepRec in stepRequest.records) {
-                                                        totalSteps += stepRec.count
-                                                }
-
-                                                // val metadata = (rec as Record).metadata
-                                                // Add final datapoint
-                                                healthConnectData.add(
-                                                                // mapOf(
-                                                                mapOf<String, Any?>(
-                                                                                "workoutActivityType" to
-                                                                                                (workoutTypeMapHealthConnect
-                                                                                                                .filterValues {
-                                                                                                                        it ==
-                                                                                                                                        record.exerciseType
-                                                                                                                }
-                                                                                                                .keys
-                                                                                                                .firstOrNull()
-                                                                                                                ?: "OTHER"),
-                                                                                "totalDistance" to
-                                                                                                if (totalDistance ==
-                                                                                                                                0.0
-                                                                                                )
-                                                                                                                null
-                                                                                                else
-                                                                                                                totalDistance,
-                                                                                "totalDistanceUnit" to
-                                                                                                "METER",
-                                                                                "totalEnergyBurned" to
-                                                                                                if (totalEnergyBurned ==
-                                                                                                                                0.0
-                                                                                                )
-                                                                                                                null
-                                                                                                else
-                                                                                                                totalEnergyBurned,
-                                                                                "totalEnergyBurnedUnit" to
-                                                                                                "KILOCALORIE",
-                                                                                "totalSteps" to
-                                                                                                if (totalSteps ==
-                                                                                                                                0.0
-                                                                                                )
-                                                                                                                null
-                                                                                                else
-                                                                                                                totalSteps,
-                                                                                "totalStepsUnit" to
-                                                                                                "COUNT",
-                                                                                "unit" to "MINUTES",
-                                                                                "date_from" to
-                                                                                                rec.startTime
-                                                                                                                .toEpochMilli(),
-                                                                                "date_to" to
-                                                                                                rec.endTime.toEpochMilli(),
-                                                                                "source_id" to "",
-                                                                                "source_name" to
-                                                                                                record.metadata
-                                                                                                                .dataOrigin
-                                                                                                                .packageName,
-                                                                ),
-                                                )
-                                        }
-                                        // Filter sleep stages for requested stage
-                                } else if (classType == SleepSessionRecord::class) {
-                                        for (rec in response.records) {
-                                                if (rec is SleepSessionRecord) {
-                                                        if (dataType == SLEEP_SESSION) {
-                                                                healthConnectData.addAll(
-                                                                                convertRecord(
-                                                                                                rec,
-                                                                                                dataType
-                                                                                )
-                                                                )
-                                                        } else {
-                                                                for (recStage in rec.stages) {
-                                                                        if (dataType ==
-                                                                                                        MapSleepStageToType[
-                                                                                                                        recStage.stage]
-                                                                        ) {
-                                                                                healthConnectData
-                                                                                                .addAll(
-                                                                                                                convertRecordStage(
-                                                                                                                                recStage,
-                                                                                                                                dataType,
-                                                                                                                                rec.metadata.dataOrigin
-                                                                                                                                                .packageName
-                                                                                                                )
-                                                                                                )
+                                                        if (response != null) {
+                                                                var pageToken = response.pageToken
+        
+                                                                // Add the records from the initial response to the records list
+                                                                records.addAll(response.records)
+        
+                                                                // Continue making requests and fetching records while there is a
+                                                                // page token
+                                                                while (!pageToken.isNullOrEmpty()) {
+                                                                        request =
+                                                                                        ReadRecordsRequest(
+                                                                                                        recordType = classType,
+                                                                                                        timeRangeFilter =
+                                                                                                                        TimeRangeFilter.between(
+                                                                                                                                        startTime,
+                                                                                                                                        endTime
+                                                                                                                        ),
+                                                                                                        pageToken = pageToken
+                                                                                        )
+                                                                        try {
+                                                                                response = healthConnectClient.readRecords(request)
+                                                                        } catch (e: Exception) {
+                                                                                if (e.message?.contains("API call quota exceeded") == true) {
+                                                                                    Log.w("FLUTTER_HEALTH::ERROR", "API call quota exceeded. Please try again later.")
+                                                                                } else {
+                                                                                    Log.w("FLUTTER_HEALTH::ERROR", "unable to return getHCData")
+                                                                                }
+                                                                        }
+        
+                                                                        if (response != null) {
+                                                                                pageToken = response.pageToken
+                                                                                records.addAll(response.records)
                                                                         }
                                                                 }
+        
+                                                                // Workout needs distance and total calories burned too
+                                                                if (dataType == WORKOUT) {
+                                                                        for (rec in records) {
+                                                                                val record = rec as ExerciseSessionRecord
+                                                                                var distanceResponse: ReadRecordsResponse<DistanceRecord>? = null
+                                                                                try {
+                                                                                        distanceResponse = healthConnectClient.readRecords(
+                                                                                                ReadRecordsRequest(
+                                                                                                        recordType = DistanceRecord::class,
+                                                                                                        timeRangeFilter = TimeRangeFilter.between(record.startTime, record.endTime),
+                                                                                                )
+                                                                                        )
+                                                                                } catch (e: Exception) {
+                                                                                        if (e.message?.contains("API call quota exceeded") == true) {
+                                                                                                Log.w("FLUTTER_HEALTH::ERROR", "API call quota exceeded. Please try again later.")
+                                                                                        } else {
+                                                                                                Log.w("FLUTTER_HEALTH::ERROR", "unable to return getHCData")
+                                                                                        }
+                                                                                }
+        
+                                                                                if (distanceResponse == null) continue
+        
+                                                                                var totalDistance = 0.0
+                                                                                for (distanceRec in distanceResponse.records) {
+                                                                                        totalDistance += distanceRec.distance.inMeters
+                                                                                }
+        
+                                                                                var energyBurnedResponse: ReadRecordsResponse<TotalCaloriesBurnedRecord>? = null
+                                                                                try {
+                                                                                        energyBurnedResponse = healthConnectClient.readRecords(
+                                                                                                ReadRecordsRequest(
+                                                                                                        recordType = TotalCaloriesBurnedRecord::class,
+                                                                                                        timeRangeFilter = TimeRangeFilter.between(record.startTime, record.endTime),
+                                                                                                )
+                                                                                        )
+                                                                                } catch (e: Exception) {
+                                                                                        if (e.message?.contains("API call quota exceeded") == true) {
+                                                                                                Log.w("FLUTTER_HEALTH::ERROR", "API call quota exceeded. Please try again later.")
+                                                                                        } else {
+                                                                                                Log.w("FLUTTER_HEALTH::ERROR", "unable to return getHCData")
+                                                                                        }
+                                                                                }
+        
+                                                                                if (energyBurnedResponse == null) continue
+        
+                                                                                var totalEnergyBurned = 0.0
+                                                                                for (energyBurnedRec in energyBurnedResponse.records) {
+                                                                                        totalEnergyBurned += energyBurnedRec.energy.inKilocalories
+                                                                                }
+        
+                                                                                var stepResponse: ReadRecordsResponse<StepsRecord>? = null
+                                                                                try {
+                                                                                        stepResponse = healthConnectClient.readRecords(
+                                                                                                ReadRecordsRequest(
+                                                                                                        recordType = StepsRecord::class,
+                                                                                                        timeRangeFilter = TimeRangeFilter.between(record.startTime, record.endTime),
+                                                                                                )
+                                                                                        )
+                                                                                } catch (e: Exception) {
+                                                                                        if (e.message?.contains("API call quota exceeded") == true) {
+                                                                                                Log.w("FLUTTER_HEALTH::ERROR", "API call quota exceeded. Please try again later.")
+                                                                                        } else {
+                                                                                                Log.w("FLUTTER_HEALTH::ERROR", "unable to return getHCData")
+                                                                                        }
+                                                                                }
+        
+                                                                                if (stepResponse == null) continue
+        
+                                                                                var totalSteps = 0.0
+                                                                                for (stepRec in stepResponse.records) {
+                                                                                    totalSteps += stepRec.count
+                                                                                }
+        
+                                                                                // val metadata = (rec as Record).metadata
+                                                                                // Add final datapoint
+                                                                                healthConnectData.add(
+                                                                                                // mapOf(
+                                                                                                mapOf<String, Any?>(
+                                                                                                                "workoutActivityType" to
+                                                                                                                                (workoutTypeMapHealthConnect
+                                                                                                                                                .filterValues {
+                                                                                                                                                        it ==
+                                                                                                                                                                        record.exerciseType
+                                                                                                                                                }
+                                                                                                                                                .keys
+                                                                                                                                                .firstOrNull()
+                                                                                                                                                ?: "OTHER"),
+                                                                                                                "totalDistance" to
+                                                                                                                                if (totalDistance ==
+                                                                                                                                                                0.0
+                                                                                                                                )
+                                                                                                                                                null
+                                                                                                                                else
+                                                                                                                                                totalDistance,
+                                                                                                                "totalDistanceUnit" to
+                                                                                                                                "METER",
+                                                                                                                "totalEnergyBurned" to
+                                                                                                                                if (totalEnergyBurned ==
+                                                                                                                                                                0.0
+                                                                                                                                )
+                                                                                                                                                null
+                                                                                                                                else
+                                                                                                                                                totalEnergyBurned,
+                                                                                                                "totalEnergyBurnedUnit" to
+                                                                                                                                "KILOCALORIE",
+                                                                                                                "totalSteps" to
+                                                                                                                                if (totalSteps ==
+                                                                                                                                                                0.0
+                                                                                                                                )
+                                                                                                                                                null
+                                                                                                                                else
+                                                                                                                                                totalSteps,
+                                                                                                                "totalStepsUnit" to
+                                                                                                                                "COUNT",
+                                                                                                                "unit" to "MINUTES",
+                                                                                                                "date_from" to
+                                                                                                                                rec.startTime
+                                                                                                                                                .toEpochMilli(),
+                                                                                                                "date_to" to
+                                                                                                                                rec.endTime.toEpochMilli(),
+                                                                                                                "source_id" to "",
+                                                                                                                "source_name" to
+                                                                                                                                record.metadata
+                                                                                                                                                .dataOrigin
+                                                                                                                                                .packageName,
+                                                                                                ),
+                                                                                )
+                                                                        }
+                                                                        // Filter sleep stages for requested stage
+                                                                } else if (classType == SleepSessionRecord::class) {
+                                                                        for (rec in response!!.records) {
+                                                                                if (rec is SleepSessionRecord) {
+                                                                                        if (dataType == SLEEP_SESSION) {
+                                                                                                healthConnectData.addAll(
+                                                                                                                convertRecord(
+                                                                                                                                rec,
+                                                                                                                                dataType
+                                                                                                                )
+                                                                                                )
+                                                                                        } else {
+                                                                                                for (recStage in rec.stages) {
+                                                                                                        if (dataType ==
+                                                                                                                                        MapSleepStageToType[
+                                                                                                                                                        recStage.stage]
+                                                                                                        ) {
+                                                                                                                healthConnectData
+                                                                                                                                .addAll(
+                                                                                                                                                convertRecordStage(
+                                                                                                                                                                recStage,
+                                                                                                                                                                dataType,
+                                                                                                                                                                rec.metadata.dataOrigin
+                                                                                                                                                                                .packageName
+                                                                                                                                                )
+                                                                                                                                )
+                                                                                                        }
+                                                                                                }
+                                                                                        }
+                                                                                }
+                                                                        }
+                                                                } else {
+                                                                        for (rec in records) {
+                                                                                healthConnectData.addAll(
+                                                                                                convertRecord(rec, dataType)
+                                                                                )
+                                                                        }
+                                                                }
+                                                        } else {
+                                                                Log.w("FLUTTER_HEALTH::ERROR", "unable to return getHCData")
+                                                        }
+                                                } catch (e: Exception) {
+                                                        if (e.message?.contains("API call quota exceeded") == true) {
+                                                                Log.w("FLUTTER_HEALTH::ERROR", "API call quota exceeded. Please try again later.")
+                                                        } else {
+                                                                Log.w("FLUTTER_HEALTH::ERROR", "unable to return getHCData")
                                                         }
                                                 }
                                         }
-                                } else {
-                                        for (rec in records) {
-                                                healthConnectData.addAll(
-                                                                convertRecord(rec, dataType)
-                                                )
+                                        Handler(context!!.mainLooper).run { result.success(healthConnectData) }
+                                } catch (e: Exception) {
+                                        if (e.message?.contains("API call quota exceeded") == true) {
+                                                Log.w("FLUTTER_HEALTH::ERROR", "API call quota exceeded. Please try again later.")
+                                                Handler(context!!.mainLooper).run { result.success(null) }
+                                        } else {
+                                                Log.w("FLUTTER_HEALTH::ERROR", "unable to return getHCData")
+                                                Handler(context!!.mainLooper).run { result.success(null) }
                                         }
                                 }
                         }
-                        Handler(context!!.mainLooper).run { result.success(healthConnectData) }
+                } catch (e: Exception) {
+                        if (e.message?.contains("API call quota exceeded") == true) {
+                                Log.w("FLUTTER_HEALTH::ERROR", "API call quota exceeded. Please try again later.")
+                                Handler(context!!.mainLooper).run { result.success(null) }
+                        } else {
+                                Log.w("FLUTTER_HEALTH::ERROR", "unable to return getHCData")
+                                Handler(context!!.mainLooper).run { result.success(null) }
+                        }
                 }
         }
 
@@ -2856,67 +3072,87 @@ class HealthPlugin(private var channel: MethodChannel? = null) :
         }
 
         fun getAggregateHCData(call: MethodCall, result: Result) {
-                val dataType = call.argument<String>("dataTypeKey")!!
-                val interval = call.argument<Long>("interval")!!
-                val startTime = Instant.ofEpochMilli(call.argument<Long>("startTime")!!)
-                val endTime = Instant.ofEpochMilli(call.argument<Long>("endTime")!!)
-                val healthConnectData = mutableListOf<Map<String, Any?>>()
-                scope.launch {
-                        MapToHCAggregateMetric[dataType]?.let { metricClassType ->
-                                val request =
-                                                AggregateGroupByDurationRequest(
-                                                                metrics = setOf(metricClassType),
-                                                                timeRangeFilter =
-                                                                                TimeRangeFilter.between(
-                                                                                                startTime,
-                                                                                                endTime
-                                                                                ),
-                                                                timeRangeSlicer =
-                                                                                Duration.ofSeconds(
-                                                                                                interval
-                                                                                )
-                                                )
-                                val response = healthConnectClient.aggregateGroupByDuration(request)
+                try {
+                        val dataType = call.argument<String>("dataTypeKey")!!
+                        val interval = call.argument<Long>("interval")!!
+                        val startTime = Instant.ofEpochMilli(call.argument<Long>("startTime")!!)
+                        val endTime = Instant.ofEpochMilli(call.argument<Long>("endTime")!!)
+                        val healthConnectData = mutableListOf<Map<String, Any?>>()
+                        scope.launch {
+                                try {
+                                        MapToHCAggregateMetric[dataType]?.let { metricClassType ->
+                                                val request =
+                                                                AggregateGroupByDurationRequest(
+                                                                                metrics = setOf(metricClassType),
+                                                                                timeRangeFilter =
+                                                                                                TimeRangeFilter.between(
+                                                                                                                startTime,
+                                                                                                                endTime
+                                                                                                ),
+                                                                                timeRangeSlicer =
+                                                                                                Duration.ofSeconds(
+                                                                                                                interval
+                                                                                                )
+                                                                )
+                                                val response = healthConnectClient.aggregateGroupByDuration(request)
 
-                                for (durationResult in response) {
-                                        // The result may be null if no data is available in the
-                                        // time range
-                                        var totalValue = durationResult.result[metricClassType]
-                                        if (totalValue is Length) {
-                                                totalValue = totalValue.inMeters
-                                        } else if (totalValue is Energy) {
-                                                totalValue = totalValue.inKilocalories
+                                                for (durationResult in response) {
+                                                        // The result may be null if no data is available in the
+                                                        // time range
+                                                        var totalValue = durationResult.result[metricClassType]
+                                                        if (totalValue is Length) {
+                                                                totalValue = totalValue.inMeters
+                                                        } else if (totalValue is Energy) {
+                                                                totalValue = totalValue.inKilocalories
+                                                        }
+
+                                                        val packageNames =
+                                                                        durationResult.result.dataOrigins
+                                                                                        .joinToString { origin ->
+                                                                                                "${origin.packageName}"
+                                                                                        }
+
+                                                        val data =
+                                                                        mapOf<String, Any>(
+                                                                                        "value" to
+                                                                                                        (totalValue
+                                                                                                                        ?: 0),
+                                                                                        "date_from" to
+                                                                                                        durationResult.startTime
+                                                                                                                        .toEpochMilli(),
+                                                                                        "date_to" to
+                                                                                                        durationResult.endTime
+                                                                                                                        .toEpochMilli(),
+                                                                                        "source_name" to
+                                                                                                        packageNames,
+                                                                                        "source_id" to "",
+                                                                                        "is_manual_entry" to
+                                                                                                        packageNames.contains(
+                                                                                                                        "user_input"
+                                                                                                        )
+                                                                        )
+                                                        healthConnectData.add(data)
+                                                }
                                         }
-
-                                        val packageNames =
-                                                        durationResult.result.dataOrigins
-                                                                        .joinToString { origin ->
-                                                                                "${origin.packageName}"
-                                                                        }
-
-                                        val data =
-                                                        mapOf<String, Any>(
-                                                                        "value" to
-                                                                                        (totalValue
-                                                                                                        ?: 0),
-                                                                        "date_from" to
-                                                                                        durationResult.startTime
-                                                                                                        .toEpochMilli(),
-                                                                        "date_to" to
-                                                                                        durationResult.endTime
-                                                                                                        .toEpochMilli(),
-                                                                        "source_name" to
-                                                                                        packageNames,
-                                                                        "source_id" to "",
-                                                                        "is_manual_entry" to
-                                                                                        packageNames.contains(
-                                                                                                        "user_input"
-                                                                                        )
-                                                        )
-                                        healthConnectData.add(data)
+                                        Handler(context!!.mainLooper).run { result.success(healthConnectData) }
+                                } catch (e: Exception) {
+                                        if (e.message?.contains("API call quota exceeded") == true) {
+                                                Log.w("FLUTTER_HEALTH::ERROR", "API call quota exceeded. Please try again later.")
+                                                Handler(context!!.mainLooper).run { result.success(null) }
+                                        } else {
+                                                Log.w("FLUTTER_HEALTH::ERROR", "unable to return getAggregateHCData")
+                                                Handler(context!!.mainLooper).run { result.success(null) }
+                                        }
                                 }
                         }
-                        Handler(context!!.mainLooper).run { result.success(healthConnectData) }
+                } catch (e: Exception) {
+                        if (e.message?.contains("API call quota exceeded") == true) {
+                                Log.w("FLUTTER_HEALTH::ERROR", "API call quota exceeded. Please try again later.")
+                                Handler(context!!.mainLooper).run { result.success(null) }
+                        } else {
+                                Log.w("FLUTTER_HEALTH::ERROR", "unable to return getAggregateHCData")
+                                Handler(context!!.mainLooper).run { result.success(null) }
+                        }
                 }
         }
 
@@ -3328,598 +3564,650 @@ class HealthPlugin(private var channel: MethodChannel? = null) :
         // not
         // adopt a single type with attached stages approach
         fun writeHCData(call: MethodCall, result: Result) {
-                val type = call.argument<String>("dataTypeKey")!!
-                val startTime = call.argument<Long>("startTime")!!
-                val endTime = call.argument<Long>("endTime")!!
-                val value = call.argument<Double>("value")!!
-                val record =
-                                when (type) {
-                                        BODY_FAT_PERCENTAGE ->
-                                                        BodyFatRecord(
-                                                                        time =
-                                                                                        Instant.ofEpochMilli(
-                                                                                                        startTime
-                                                                                        ),
-                                                                        percentage =
-                                                                                        Percentage(
-                                                                                                        value
-                                                                                        ),
-                                                                        zoneOffset = null,
-                                                        )
-                                        HEIGHT ->
-                                                        HeightRecord(
-                                                                        time =
-                                                                                        Instant.ofEpochMilli(
-                                                                                                        startTime
-                                                                                        ),
-                                                                        height =
-                                                                                        Length.meters(
-                                                                                                        value
-                                                                                        ),
-                                                                        zoneOffset = null,
-                                                        )
-                                        WEIGHT ->
-                                                        WeightRecord(
-                                                                        time =
-                                                                                        Instant.ofEpochMilli(
-                                                                                                        startTime
-                                                                                        ),
-                                                                        weight =
-                                                                                        Mass.kilograms(
-                                                                                                        value
-                                                                                        ),
-                                                                        zoneOffset = null,
-                                                        )
-                                        STEPS ->
-                                                        StepsRecord(
-                                                                        startTime =
-                                                                                        Instant.ofEpochMilli(
-                                                                                                        startTime
-                                                                                        ),
-                                                                        endTime =
-                                                                                        Instant.ofEpochMilli(
-                                                                                                        endTime
-                                                                                        ),
-                                                                        count = value.toLong(),
-                                                                        startZoneOffset = null,
-                                                                        endZoneOffset = null,
-                                                        )
-                                        ACTIVE_ENERGY_BURNED ->
-                                                        ActiveCaloriesBurnedRecord(
-                                                                        startTime =
-                                                                                        Instant.ofEpochMilli(
-                                                                                                        startTime
-                                                                                        ),
-                                                                        endTime =
-                                                                                        Instant.ofEpochMilli(
-                                                                                                        endTime
-                                                                                        ),
-                                                                        energy =
-                                                                                        Energy.kilocalories(
-                                                                                                        value
-                                                                                        ),
-                                                                        startZoneOffset = null,
-                                                                        endZoneOffset = null,
-                                                        )
-                                        HEART_RATE ->
-                                                        HeartRateRecord(
-                                                                        startTime =
-                                                                                        Instant.ofEpochMilli(
-                                                                                                        startTime
-                                                                                        ),
-                                                                        endTime =
-                                                                                        Instant.ofEpochMilli(
-                                                                                                        endTime
-                                                                                        ),
-                                                                        samples =
-                                                                                        listOf<
-                                                                                                        HeartRateRecord.Sample>(
-                                                                                                        HeartRateRecord.Sample(
-                                                                                                                        time =
-                                                                                                                                        Instant.ofEpochMilli(
-                                                                                                                                                        startTime
-                                                                                                                                        ),
-                                                                                                                        beatsPerMinute =
-                                                                                                                                        value.toLong(),
-                                                                                                        ),
-                                                                                        ),
-                                                                        startZoneOffset = null,
-                                                                        endZoneOffset = null,
-                                                        )
-                                        BODY_TEMPERATURE ->
-                                                        BodyTemperatureRecord(
-                                                                        time =
-                                                                                        Instant.ofEpochMilli(
-                                                                                                        startTime
-                                                                                        ),
-                                                                        temperature =
-                                                                                        Temperature.celsius(
-                                                                                                        value
-                                                                                        ),
-                                                                        zoneOffset = null,
-                                                        )
-                                        BODY_WATER_MASS ->
-                                                        BodyWaterMassRecord(
-                                                                        time =
-                                                                                        Instant.ofEpochMilli(
-                                                                                                        startTime
-                                                                                        ),
-                                                                        mass =
-                                                                                        Mass.kilograms(
-                                                                                                        value
-                                                                                        ),
-                                                                        zoneOffset = null,
-                                                        )
-                                        BLOOD_OXYGEN ->
-                                                        OxygenSaturationRecord(
-                                                                        time =
-                                                                                        Instant.ofEpochMilli(
-                                                                                                        startTime
-                                                                                        ),
-                                                                        percentage =
-                                                                                        Percentage(
-                                                                                                        value
-                                                                                        ),
-                                                                        zoneOffset = null,
-                                                        )
-                                        BLOOD_GLUCOSE ->
-                                                        BloodGlucoseRecord(
-                                                                        time =
-                                                                                        Instant.ofEpochMilli(
-                                                                                                        startTime
-                                                                                        ),
-                                                                        level =
-                                                                                        BloodGlucose.milligramsPerDeciliter(
-                                                                                                        value
-                                                                                        ),
-                                                                        zoneOffset = null,
-                                                        )
-                                        DISTANCE_DELTA ->
-                                                        DistanceRecord(
-                                                                        startTime =
-                                                                                        Instant.ofEpochMilli(
-                                                                                                        startTime
-                                                                                        ),
-                                                                        endTime =
-                                                                                        Instant.ofEpochMilli(
-                                                                                                        endTime
-                                                                                        ),
-                                                                        distance =
-                                                                                        Length.meters(
-                                                                                                        value
-                                                                                        ),
-                                                                        startZoneOffset = null,
-                                                                        endZoneOffset = null,
-                                                        )
-                                        WATER ->
-                                                        HydrationRecord(
-                                                                        startTime =
-                                                                                        Instant.ofEpochMilli(
-                                                                                                        startTime
-                                                                                        ),
-                                                                        endTime =
-                                                                                        Instant.ofEpochMilli(
-                                                                                                        endTime
-                                                                                        ),
-                                                                        volume =
-                                                                                        Volume.liters(
-                                                                                                        value
-                                                                                        ),
-                                                                        startZoneOffset = null,
-                                                                        endZoneOffset = null,
-                                                        )
-                                        SLEEP_ASLEEP ->
-                                                        SleepSessionRecord(
-                                                                        startTime =
-                                                                                        Instant.ofEpochMilli(
-                                                                                                        startTime
-                                                                                        ),
-                                                                        endTime =
-                                                                                        Instant.ofEpochMilli(
-                                                                                                        endTime
-                                                                                        ),
-                                                                        startZoneOffset = null,
-                                                                        endZoneOffset = null,
-                                                                        stages =
-                                                                                        listOf(
-                                                                                                        SleepSessionRecord
-                                                                                                                        .Stage(
-                                                                                                                                        Instant.ofEpochMilli(
-                                                                                                                                                        startTime
-                                                                                                                                        ),
-                                                                                                                                        Instant.ofEpochMilli(
-                                                                                                                                                        endTime
-                                                                                                                                        ),
-                                                                                                                                        SleepSessionRecord
-                                                                                                                                                        .STAGE_TYPE_SLEEPING
-                                                                                                                        )
-                                                                                        ),
-                                                        )
-                                        SLEEP_LIGHT ->
-                                                        SleepSessionRecord(
-                                                                        startTime =
-                                                                                        Instant.ofEpochMilli(
-                                                                                                        startTime
-                                                                                        ),
-                                                                        endTime =
-                                                                                        Instant.ofEpochMilli(
-                                                                                                        endTime
-                                                                                        ),
-                                                                        startZoneOffset = null,
-                                                                        endZoneOffset = null,
-                                                                        stages =
-                                                                                        listOf(
-                                                                                                        SleepSessionRecord
-                                                                                                                        .Stage(
-                                                                                                                                        Instant.ofEpochMilli(
-                                                                                                                                                        startTime
-                                                                                                                                        ),
-                                                                                                                                        Instant.ofEpochMilli(
-                                                                                                                                                        endTime
-                                                                                                                                        ),
-                                                                                                                                        SleepSessionRecord
-                                                                                                                                                        .STAGE_TYPE_LIGHT
-                                                                                                                        )
-                                                                                        ),
-                                                        )
-                                        SLEEP_DEEP ->
-                                                        SleepSessionRecord(
-                                                                        startTime =
-                                                                                        Instant.ofEpochMilli(
-                                                                                                        startTime
-                                                                                        ),
-                                                                        endTime =
-                                                                                        Instant.ofEpochMilli(
-                                                                                                        endTime
-                                                                                        ),
-                                                                        startZoneOffset = null,
-                                                                        endZoneOffset = null,
-                                                                        stages =
-                                                                                        listOf(
-                                                                                                        SleepSessionRecord
-                                                                                                                        .Stage(
-                                                                                                                                        Instant.ofEpochMilli(
-                                                                                                                                                        startTime
-                                                                                                                                        ),
-                                                                                                                                        Instant.ofEpochMilli(
-                                                                                                                                                        endTime
-                                                                                                                                        ),
-                                                                                                                                        SleepSessionRecord
-                                                                                                                                                        .STAGE_TYPE_DEEP
-                                                                                                                        )
-                                                                                        ),
-                                                        )
-                                        SLEEP_REM ->
-                                                        SleepSessionRecord(
-                                                                        startTime =
-                                                                                        Instant.ofEpochMilli(
-                                                                                                        startTime
-                                                                                        ),
-                                                                        endTime =
-                                                                                        Instant.ofEpochMilli(
-                                                                                                        endTime
-                                                                                        ),
-                                                                        startZoneOffset = null,
-                                                                        endZoneOffset = null,
-                                                                        stages =
-                                                                                        listOf(
-                                                                                                        SleepSessionRecord
-                                                                                                                        .Stage(
-                                                                                                                                        Instant.ofEpochMilli(
-                                                                                                                                                        startTime
-                                                                                                                                        ),
-                                                                                                                                        Instant.ofEpochMilli(
-                                                                                                                                                        endTime
-                                                                                                                                        ),
-                                                                                                                                        SleepSessionRecord
-                                                                                                                                                        .STAGE_TYPE_REM
-                                                                                                                        )
-                                                                                        ),
-                                                        )
-                                        SLEEP_OUT_OF_BED ->
-                                                        SleepSessionRecord(
-                                                                        startTime =
-                                                                                        Instant.ofEpochMilli(
-                                                                                                        startTime
-                                                                                        ),
-                                                                        endTime =
-                                                                                        Instant.ofEpochMilli(
-                                                                                                        endTime
-                                                                                        ),
-                                                                        startZoneOffset = null,
-                                                                        endZoneOffset = null,
-                                                                        stages =
-                                                                                        listOf(
-                                                                                                        SleepSessionRecord
-                                                                                                                        .Stage(
-                                                                                                                                        Instant.ofEpochMilli(
-                                                                                                                                                        startTime
-                                                                                                                                        ),
-                                                                                                                                        Instant.ofEpochMilli(
-                                                                                                                                                        endTime
-                                                                                                                                        ),
-                                                                                                                                        SleepSessionRecord
-                                                                                                                                                        .STAGE_TYPE_OUT_OF_BED
-                                                                                                                        )
-                                                                                        ),
-                                                        )
-                                        SLEEP_AWAKE ->
-                                                        SleepSessionRecord(
-                                                                        startTime =
-                                                                                        Instant.ofEpochMilli(
-                                                                                                        startTime
-                                                                                        ),
-                                                                        endTime =
-                                                                                        Instant.ofEpochMilli(
-                                                                                                        endTime
-                                                                                        ),
-                                                                        startZoneOffset = null,
-                                                                        endZoneOffset = null,
-                                                                        stages =
-                                                                                        listOf(
-                                                                                                        SleepSessionRecord
-                                                                                                                        .Stage(
-                                                                                                                                        Instant.ofEpochMilli(
-                                                                                                                                                        startTime
-                                                                                                                                        ),
-                                                                                                                                        Instant.ofEpochMilli(
-                                                                                                                                                        endTime
-                                                                                                                                        ),
-                                                                                                                                        SleepSessionRecord
-                                                                                                                                                        .STAGE_TYPE_AWAKE
-                                                                                                                        )
-                                                                                        ),
-                                                        )
-                                        SLEEP_SESSION ->
-                                                        SleepSessionRecord(
-                                                                        startTime =
-                                                                                        Instant.ofEpochMilli(
-                                                                                                        startTime
-                                                                                        ),
-                                                                        endTime =
-                                                                                        Instant.ofEpochMilli(
-                                                                                                        endTime
-                                                                                        ),
-                                                                        startZoneOffset = null,
-                                                                        endZoneOffset = null,
-                                                        )
-                                        RESTING_HEART_RATE ->
-                                                        RestingHeartRateRecord(
-                                                                        time =
-                                                                                        Instant.ofEpochMilli(
-                                                                                                        startTime
-                                                                                        ),
-                                                                        beatsPerMinute =
-                                                                                        value.toLong(),
-                                                                        zoneOffset = null,
-                                                        )
-                                        BASAL_ENERGY_BURNED ->
-                                                        BasalMetabolicRateRecord(
-                                                                        time =
-                                                                                        Instant.ofEpochMilli(
-                                                                                                        startTime
-                                                                                        ),
-                                                                        basalMetabolicRate =
-                                                                                        Power.kilocaloriesPerDay(
-                                                                                                        value
-                                                                                        ),
-                                                                        zoneOffset = null,
-                                                        )
-                                        FLIGHTS_CLIMBED ->
-                                                        FloorsClimbedRecord(
-                                                                        startTime =
-                                                                                        Instant.ofEpochMilli(
-                                                                                                        startTime
-                                                                                        ),
-                                                                        endTime =
-                                                                                        Instant.ofEpochMilli(
-                                                                                                        endTime
-                                                                                        ),
-                                                                        floors = value,
-                                                                        startZoneOffset = null,
-                                                                        endZoneOffset = null,
-                                                        )
-                                        RESPIRATORY_RATE ->
-                                                        RespiratoryRateRecord(
-                                                                        time =
-                                                                                        Instant.ofEpochMilli(
-                                                                                                        startTime
-                                                                                        ),
-                                                                        rate = value,
-                                                                        zoneOffset = null,
-                                                        )
-                                        // AGGREGATE_STEP_COUNT -> StepsRecord()
-                                        TOTAL_CALORIES_BURNED ->
-                                                        TotalCaloriesBurnedRecord(
-                                                                        startTime =
-                                                                                        Instant.ofEpochMilli(
-                                                                                                        startTime
-                                                                                        ),
-                                                                        endTime =
-                                                                                        Instant.ofEpochMilli(
-                                                                                                        endTime
-                                                                                        ),
-                                                                        energy =
-                                                                                        Energy.kilocalories(
-                                                                                                        value
-                                                                                        ),
-                                                                        startZoneOffset = null,
-                                                                        endZoneOffset = null,
-                                                        )
-                                        BLOOD_PRESSURE_SYSTOLIC ->
-                                                        throw IllegalArgumentException(
-                                                                        "You must use the [writeBloodPressure] API "
-                                                        )
-                                        BLOOD_PRESSURE_DIASTOLIC ->
-                                                        throw IllegalArgumentException(
-                                                                        "You must use the [writeBloodPressure] API "
-                                                        )
-                                        WORKOUT ->
-                                                        throw IllegalArgumentException(
-                                                                        "You must use the [writeWorkoutData] API "
-                                                        )
-                                        NUTRITION ->
-                                                        throw IllegalArgumentException(
-                                                                        "You must use the [writeMeal] API "
-                                                        )
-                                        else ->
-                                                        throw IllegalArgumentException(
-                                                                        "The type $type was not supported by the Health plugin or you must use another API "
-                                                        )
+                try {
+                        val type = call.argument<String>("dataTypeKey")!!
+                        val startTime = call.argument<Long>("startTime")!!
+                        val endTime = call.argument<Long>("endTime")!!
+                        val value = call.argument<Double>("value")!!
+                        val record =
+                                        when (type) {
+                                                BODY_FAT_PERCENTAGE ->
+                                                                BodyFatRecord(
+                                                                                time =
+                                                                                                Instant.ofEpochMilli(
+                                                                                                                startTime
+                                                                                                ),
+                                                                                percentage =
+                                                                                                Percentage(
+                                                                                                                value
+                                                                                                ),
+                                                                                zoneOffset = null,
+                                                                )
+                                                HEIGHT ->
+                                                                HeightRecord(
+                                                                                time =
+                                                                                                Instant.ofEpochMilli(
+                                                                                                                startTime
+                                                                                                ),
+                                                                                height =
+                                                                                                Length.meters(
+                                                                                                                value
+                                                                                                ),
+                                                                                zoneOffset = null,
+                                                                )
+                                                WEIGHT ->
+                                                                WeightRecord(
+                                                                                time =
+                                                                                                Instant.ofEpochMilli(
+                                                                                                                startTime
+                                                                                                ),
+                                                                                weight =
+                                                                                                Mass.kilograms(
+                                                                                                                value
+                                                                                                ),
+                                                                                zoneOffset = null,
+                                                                )
+                                                STEPS ->
+                                                                StepsRecord(
+                                                                                startTime =
+                                                                                                Instant.ofEpochMilli(
+                                                                                                                startTime
+                                                                                                ),
+                                                                                endTime =
+                                                                                                Instant.ofEpochMilli(
+                                                                                                                endTime
+                                                                                                ),
+                                                                                count = value.toLong(),
+                                                                                startZoneOffset = null,
+                                                                                endZoneOffset = null,
+                                                                )
+                                                ACTIVE_ENERGY_BURNED ->
+                                                                ActiveCaloriesBurnedRecord(
+                                                                                startTime =
+                                                                                                Instant.ofEpochMilli(
+                                                                                                                startTime
+                                                                                                ),
+                                                                                endTime =
+                                                                                                Instant.ofEpochMilli(
+                                                                                                                endTime
+                                                                                                ),
+                                                                                energy =
+                                                                                                Energy.kilocalories(
+                                                                                                                value
+                                                                                                ),
+                                                                                startZoneOffset = null,
+                                                                                endZoneOffset = null,
+                                                                )
+                                                HEART_RATE ->
+                                                                HeartRateRecord(
+                                                                                startTime =
+                                                                                                Instant.ofEpochMilli(
+                                                                                                                startTime
+                                                                                                ),
+                                                                                endTime =
+                                                                                                Instant.ofEpochMilli(
+                                                                                                                endTime
+                                                                                                ),
+                                                                                samples =
+                                                                                                listOf<
+                                                                                                                HeartRateRecord.Sample>(
+                                                                                                                HeartRateRecord.Sample(
+                                                                                                                                time =
+                                                                                                                                                Instant.ofEpochMilli(
+                                                                                                                                                                startTime
+                                                                                                                                                ),
+                                                                                                                                beatsPerMinute =
+                                                                                                                                                value.toLong(),
+                                                                                                                ),
+                                                                                                ),
+                                                                                startZoneOffset = null,
+                                                                                endZoneOffset = null,
+                                                                )
+                                                BODY_TEMPERATURE ->
+                                                                BodyTemperatureRecord(
+                                                                                time =
+                                                                                                Instant.ofEpochMilli(
+                                                                                                                startTime
+                                                                                                ),
+                                                                                temperature =
+                                                                                                Temperature.celsius(
+                                                                                                                value
+                                                                                                ),
+                                                                                zoneOffset = null,
+                                                                )
+                                                BODY_WATER_MASS ->
+                                                                BodyWaterMassRecord(
+                                                                                time =
+                                                                                                Instant.ofEpochMilli(
+                                                                                                                startTime
+                                                                                                ),
+                                                                                mass =
+                                                                                                Mass.kilograms(
+                                                                                                                value
+                                                                                                ),
+                                                                                zoneOffset = null,
+                                                                )
+                                                BLOOD_OXYGEN ->
+                                                                OxygenSaturationRecord(
+                                                                                time =
+                                                                                                Instant.ofEpochMilli(
+                                                                                                                startTime
+                                                                                                ),
+                                                                                percentage =
+                                                                                                Percentage(
+                                                                                                                value
+                                                                                                ),
+                                                                                zoneOffset = null,
+                                                                )
+                                                BLOOD_GLUCOSE ->
+                                                                BloodGlucoseRecord(
+                                                                                time =
+                                                                                                Instant.ofEpochMilli(
+                                                                                                                startTime
+                                                                                                ),
+                                                                                level =
+                                                                                                BloodGlucose.milligramsPerDeciliter(
+                                                                                                                value
+                                                                                                ),
+                                                                                zoneOffset = null,
+                                                                )
+                                                DISTANCE_DELTA ->
+                                                                DistanceRecord(
+                                                                                startTime =
+                                                                                                Instant.ofEpochMilli(
+                                                                                                                startTime
+                                                                                                ),
+                                                                                endTime =
+                                                                                                Instant.ofEpochMilli(
+                                                                                                                endTime
+                                                                                                ),
+                                                                                distance =
+                                                                                                Length.meters(
+                                                                                                                value
+                                                                                                ),
+                                                                                startZoneOffset = null,
+                                                                                endZoneOffset = null,
+                                                                )
+                                                WATER ->
+                                                                HydrationRecord(
+                                                                                startTime =
+                                                                                                Instant.ofEpochMilli(
+                                                                                                                startTime
+                                                                                                ),
+                                                                                endTime =
+                                                                                                Instant.ofEpochMilli(
+                                                                                                                endTime
+                                                                                                ),
+                                                                                volume =
+                                                                                                Volume.liters(
+                                                                                                                value
+                                                                                                ),
+                                                                                startZoneOffset = null,
+                                                                                endZoneOffset = null,
+                                                                )
+                                                SLEEP_ASLEEP ->
+                                                                SleepSessionRecord(
+                                                                                startTime =
+                                                                                                Instant.ofEpochMilli(
+                                                                                                                startTime
+                                                                                                ),
+                                                                                endTime =
+                                                                                                Instant.ofEpochMilli(
+                                                                                                                endTime
+                                                                                                ),
+                                                                                startZoneOffset = null,
+                                                                                endZoneOffset = null,
+                                                                                stages =
+                                                                                                listOf(
+                                                                                                                SleepSessionRecord
+                                                                                                                                .Stage(
+                                                                                                                                                Instant.ofEpochMilli(
+                                                                                                                                                                startTime
+                                                                                                                                                ),
+                                                                                                                                                Instant.ofEpochMilli(
+                                                                                                                                                                endTime
+                                                                                                                                                ),
+                                                                                                                                                SleepSessionRecord
+                                                                                                                                                                .STAGE_TYPE_SLEEPING
+                                                                                                                                )
+                                                                                                ),
+                                                                )
+                                                SLEEP_LIGHT ->
+                                                                SleepSessionRecord(
+                                                                                startTime =
+                                                                                                Instant.ofEpochMilli(
+                                                                                                                startTime
+                                                                                                ),
+                                                                                endTime =
+                                                                                                Instant.ofEpochMilli(
+                                                                                                                endTime
+                                                                                                ),
+                                                                                startZoneOffset = null,
+                                                                                endZoneOffset = null,
+                                                                                stages =
+                                                                                                listOf(
+                                                                                                                SleepSessionRecord
+                                                                                                                                .Stage(
+                                                                                                                                                Instant.ofEpochMilli(
+                                                                                                                                                                startTime
+                                                                                                                                                ),
+                                                                                                                                                Instant.ofEpochMilli(
+                                                                                                                                                                endTime
+                                                                                                                                                ),
+                                                                                                                                                SleepSessionRecord
+                                                                                                                                                                .STAGE_TYPE_LIGHT
+                                                                                                                                )
+                                                                                                ),
+                                                                )
+                                                SLEEP_DEEP ->
+                                                                SleepSessionRecord(
+                                                                                startTime =
+                                                                                                Instant.ofEpochMilli(
+                                                                                                                startTime
+                                                                                                ),
+                                                                                endTime =
+                                                                                                Instant.ofEpochMilli(
+                                                                                                                endTime
+                                                                                                ),
+                                                                                startZoneOffset = null,
+                                                                                endZoneOffset = null,
+                                                                                stages =
+                                                                                                listOf(
+                                                                                                                SleepSessionRecord
+                                                                                                                                .Stage(
+                                                                                                                                                Instant.ofEpochMilli(
+                                                                                                                                                                startTime
+                                                                                                                                                ),
+                                                                                                                                                Instant.ofEpochMilli(
+                                                                                                                                                                endTime
+                                                                                                                                                ),
+                                                                                                                                                SleepSessionRecord
+                                                                                                                                                                .STAGE_TYPE_DEEP
+                                                                                                                                )
+                                                                                                ),
+                                                                )
+                                                SLEEP_REM ->
+                                                                SleepSessionRecord(
+                                                                                startTime =
+                                                                                                Instant.ofEpochMilli(
+                                                                                                                startTime
+                                                                                                ),
+                                                                                endTime =
+                                                                                                Instant.ofEpochMilli(
+                                                                                                                endTime
+                                                                                                ),
+                                                                                startZoneOffset = null,
+                                                                                endZoneOffset = null,
+                                                                                stages =
+                                                                                                listOf(
+                                                                                                                SleepSessionRecord
+                                                                                                                                .Stage(
+                                                                                                                                                Instant.ofEpochMilli(
+                                                                                                                                                                startTime
+                                                                                                                                                ),
+                                                                                                                                                Instant.ofEpochMilli(
+                                                                                                                                                                endTime
+                                                                                                                                                ),
+                                                                                                                                                SleepSessionRecord
+                                                                                                                                                                .STAGE_TYPE_REM
+                                                                                                                                )
+                                                                                                ),
+                                                                )
+                                                SLEEP_OUT_OF_BED ->
+                                                                SleepSessionRecord(
+                                                                                startTime =
+                                                                                                Instant.ofEpochMilli(
+                                                                                                                startTime
+                                                                                                ),
+                                                                                endTime =
+                                                                                                Instant.ofEpochMilli(
+                                                                                                                endTime
+                                                                                                ),
+                                                                                startZoneOffset = null,
+                                                                                endZoneOffset = null,
+                                                                                stages =
+                                                                                                listOf(
+                                                                                                                SleepSessionRecord
+                                                                                                                                .Stage(
+                                                                                                                                                Instant.ofEpochMilli(
+                                                                                                                                                                startTime
+                                                                                                                                                ),
+                                                                                                                                                Instant.ofEpochMilli(
+                                                                                                                                                                endTime
+                                                                                                                                                ),
+                                                                                                                                                SleepSessionRecord
+                                                                                                                                                                .STAGE_TYPE_OUT_OF_BED
+                                                                                                                                )
+                                                                                                ),
+                                                                )
+                                                SLEEP_AWAKE ->
+                                                                SleepSessionRecord(
+                                                                                startTime =
+                                                                                                Instant.ofEpochMilli(
+                                                                                                                startTime
+                                                                                                ),
+                                                                                endTime =
+                                                                                                Instant.ofEpochMilli(
+                                                                                                                endTime
+                                                                                                ),
+                                                                                startZoneOffset = null,
+                                                                                endZoneOffset = null,
+                                                                                stages =
+                                                                                                listOf(
+                                                                                                                SleepSessionRecord
+                                                                                                                                .Stage(
+                                                                                                                                                Instant.ofEpochMilli(
+                                                                                                                                                                startTime
+                                                                                                                                                ),
+                                                                                                                                                Instant.ofEpochMilli(
+                                                                                                                                                                endTime
+                                                                                                                                                ),
+                                                                                                                                                SleepSessionRecord
+                                                                                                                                                                .STAGE_TYPE_AWAKE
+                                                                                                                                )
+                                                                                                ),
+                                                                )
+                                                SLEEP_SESSION ->
+                                                                SleepSessionRecord(
+                                                                                startTime =
+                                                                                                Instant.ofEpochMilli(
+                                                                                                                startTime
+                                                                                                ),
+                                                                                endTime =
+                                                                                                Instant.ofEpochMilli(
+                                                                                                                endTime
+                                                                                                ),
+                                                                                startZoneOffset = null,
+                                                                                endZoneOffset = null,
+                                                                )
+                                                RESTING_HEART_RATE ->
+                                                                RestingHeartRateRecord(
+                                                                                time =
+                                                                                                Instant.ofEpochMilli(
+                                                                                                                startTime
+                                                                                                ),
+                                                                                beatsPerMinute =
+                                                                                                value.toLong(),
+                                                                                zoneOffset = null,
+                                                                )
+                                                BASAL_ENERGY_BURNED ->
+                                                                BasalMetabolicRateRecord(
+                                                                                time =
+                                                                                                Instant.ofEpochMilli(
+                                                                                                                startTime
+                                                                                                ),
+                                                                                basalMetabolicRate =
+                                                                                                Power.kilocaloriesPerDay(
+                                                                                                                value
+                                                                                                ),
+                                                                                zoneOffset = null,
+                                                                )
+                                                FLIGHTS_CLIMBED ->
+                                                                FloorsClimbedRecord(
+                                                                                startTime =
+                                                                                                Instant.ofEpochMilli(
+                                                                                                                startTime
+                                                                                                ),
+                                                                                endTime =
+                                                                                                Instant.ofEpochMilli(
+                                                                                                                endTime
+                                                                                                ),
+                                                                                floors = value,
+                                                                                startZoneOffset = null,
+                                                                                endZoneOffset = null,
+                                                                )
+                                                RESPIRATORY_RATE ->
+                                                                RespiratoryRateRecord(
+                                                                                time =
+                                                                                                Instant.ofEpochMilli(
+                                                                                                                startTime
+                                                                                                ),
+                                                                                rate = value,
+                                                                                zoneOffset = null,
+                                                                )
+                                                // AGGREGATE_STEP_COUNT -> StepsRecord()
+                                                TOTAL_CALORIES_BURNED ->
+                                                                TotalCaloriesBurnedRecord(
+                                                                                startTime =
+                                                                                                Instant.ofEpochMilli(
+                                                                                                                startTime
+                                                                                                ),
+                                                                                endTime =
+                                                                                                Instant.ofEpochMilli(
+                                                                                                                endTime
+                                                                                                ),
+                                                                                energy =
+                                                                                                Energy.kilocalories(
+                                                                                                                value
+                                                                                                ),
+                                                                                startZoneOffset = null,
+                                                                                endZoneOffset = null,
+                                                                )
+                                                BLOOD_PRESSURE_SYSTOLIC ->
+                                                                throw IllegalArgumentException(
+                                                                                "You must use the [writeBloodPressure] API "
+                                                                )
+                                                BLOOD_PRESSURE_DIASTOLIC ->
+                                                                throw IllegalArgumentException(
+                                                                                "You must use the [writeBloodPressure] API "
+                                                                )
+                                                WORKOUT ->
+                                                                throw IllegalArgumentException(
+                                                                                "You must use the [writeWorkoutData] API "
+                                                                )
+                                                NUTRITION ->
+                                                                throw IllegalArgumentException(
+                                                                                "You must use the [writeMeal] API "
+                                                                )
+                                                else ->
+                                                                throw IllegalArgumentException(
+                                                                                "The type $type was not supported by the Health plugin or you must use another API "
+                                                                )
+                                        }
+                        scope.launch {
+                                try {
+                                        healthConnectClient.insertRecords(listOf(record))
+                                        result.success(true)
+                                } catch (e: Exception) {
+                                        if (e.message?.contains("API call quota exceeded") == true) {
+                                                Log.w("FLUTTER_HEALTH::ERROR", "API call quota exceeded. Please try again later.")
+                                                result.success(false)
+                                        } else {
+                                                Log.w("FLUTTER_HEALTH::ERROR", "unable to writeHCData")
+                                                result.success(false)
+                                        }
                                 }
-                scope.launch {
-                        try {
-                                healthConnectClient.insertRecords(listOf(record))
-                                result.success(true)
-                        } catch (e: Exception) {
+                        }
+                } catch (e: Exception) {
+                        if (e.message?.contains("API call quota exceeded") == true) {
+                                Log.w("FLUTTER_HEALTH::ERROR", "API call quota exceeded. Please try again later.")
+                                result.success(false)
+                        } else {
+                                Log.w("FLUTTER_HEALTH::ERROR", "unable to writeHCData")
                                 result.success(false)
                         }
                 }
         }
 
         fun writeWorkoutHCData(call: MethodCall, result: Result) {
-                val type = call.argument<String>("activityType")!!
-                val startTime = Instant.ofEpochMilli(call.argument<Long>("startTime")!!)
-                val endTime = Instant.ofEpochMilli(call.argument<Long>("endTime")!!)
-                val totalEnergyBurned = call.argument<Int>("totalEnergyBurned")
-                val totalDistance = call.argument<Int>("totalDistance")
-                if (workoutTypeMapHealthConnect.containsKey(type) == false) {
-                        result.success(false)
-                        Log.w(
-                                        "FLUTTER_HEALTH::ERROR",
-                                        "[Health Connect] Workout type not supported"
-                        )
-                        return
-                }
-                val workoutType = workoutTypeMapHealthConnect[type]!!
-                val title = call.argument<String>("title") ?: type
-
-                scope.launch {
-                        try {
-                                val list = mutableListOf<Record>()
-                                list.add(
-                                                ExerciseSessionRecord(
-                                                                startTime = startTime,
-                                                                startZoneOffset = null,
-                                                                endTime = endTime,
-                                                                endZoneOffset = null,
-                                                                exerciseType = workoutType,
-                                                                title = title,
-                                                ),
-                                )
-                                if (totalDistance != null) {
-                                        list.add(
-                                                        DistanceRecord(
-                                                                        startTime = startTime,
-                                                                        startZoneOffset = null,
-                                                                        endTime = endTime,
-                                                                        endZoneOffset = null,
-                                                                        distance =
-                                                                                        Length.meters(
-                                                                                                        totalDistance.toDouble()
-                                                                                        ),
-                                                        ),
-                                        )
-                                }
-                                if (totalEnergyBurned != null) {
-                                        list.add(
-                                                        TotalCaloriesBurnedRecord(
-                                                                        startTime = startTime,
-                                                                        startZoneOffset = null,
-                                                                        endTime = endTime,
-                                                                        endZoneOffset = null,
-                                                                        energy =
-                                                                                        Energy.kilocalories(
-                                                                                                        totalEnergyBurned
-                                                                                                                        .toDouble()
-                                                                                        ),
-                                                        ),
-                                        )
-                                }
-                                healthConnectClient.insertRecords(
-                                                list,
-                                )
-                                result.success(true)
-                                Log.i(
-                                                "FLUTTER_HEALTH::SUCCESS",
-                                                "[Health Connect] Workout was successfully added!"
-                                )
-                        } catch (e: Exception) {
+                try {
+                        val type = call.argument<String>("activityType")!!
+                        val startTime = Instant.ofEpochMilli(call.argument<Long>("startTime")!!)
+                        val endTime = Instant.ofEpochMilli(call.argument<Long>("endTime")!!)
+                        val totalEnergyBurned = call.argument<Int>("totalEnergyBurned")
+                        val totalDistance = call.argument<Int>("totalDistance")
+                        if (workoutTypeMapHealthConnect.containsKey(type) == false) {
+                                result.success(false)
                                 Log.w(
                                                 "FLUTTER_HEALTH::ERROR",
-                                                "[Health Connect] There was an error adding the workout",
+                                                "[Health Connect] Workout type not supported"
                                 )
-                                Log.w("FLUTTER_HEALTH::ERROR", e.message ?: "unknown error")
-                                Log.w("FLUTTER_HEALTH::ERROR", e.stackTrace.toString())
+                                return
+                        }
+                        val workoutType = workoutTypeMapHealthConnect[type]!!
+                        val title = call.argument<String>("title") ?: type
+
+                        scope.launch {
+                                try {
+                                        val list = mutableListOf<Record>()
+                                        list.add(
+                                                        ExerciseSessionRecord(
+                                                                        startTime = startTime,
+                                                                        startZoneOffset = null,
+                                                                        endTime = endTime,
+                                                                        endZoneOffset = null,
+                                                                        exerciseType = workoutType,
+                                                                        title = title,
+                                                        ),
+                                        )
+                                        if (totalDistance != null) {
+                                                list.add(
+                                                                DistanceRecord(
+                                                                                startTime = startTime,
+                                                                                startZoneOffset = null,
+                                                                                endTime = endTime,
+                                                                                endZoneOffset = null,
+                                                                                distance =
+                                                                                                Length.meters(
+                                                                                                                totalDistance.toDouble()
+                                                                                                ),
+                                                                ),
+                                                )
+                                        }
+                                        if (totalEnergyBurned != null) {
+                                                list.add(
+                                                                TotalCaloriesBurnedRecord(
+                                                                                startTime = startTime,
+                                                                                startZoneOffset = null,
+                                                                                endTime = endTime,
+                                                                                endZoneOffset = null,
+                                                                                energy =
+                                                                                                Energy.kilocalories(
+                                                                                                                totalEnergyBurned
+                                                                                                                                .toDouble()
+                                                                                                ),
+                                                                ),
+                                                )
+                                        }
+                                        healthConnectClient.insertRecords(
+                                                        list,
+                                        )
+                                        result.success(true)
+                                        Log.i(
+                                                        "FLUTTER_HEALTH::SUCCESS",
+                                                        "[Health Connect] Workout was successfully added!"
+                                        )
+                                } catch (e: Exception) {
+                                        if (e.message?.contains("API call quota exceeded") == true) {
+                                                Log.w("FLUTTER_HEALTH::ERROR", "API call quota exceeded. Please try again later.")
+                                                result.success(false)
+                                        } else {
+                                                Log.w("FLUTTER_HEALTH::ERROR", "unable to writeWorkoutHCData")
+                                                result.success(false)
+                                        }
+                                }
+                        }
+                } catch (e: Exception) {
+                        if (e.message?.contains("API call quota exceeded") == true) {
+                                Log.w("FLUTTER_HEALTH::ERROR", "API call quota exceeded. Please try again later.")
+                                result.success(false)
+                        } else {
+                                Log.w("FLUTTER_HEALTH::ERROR", "unable to writeWorkoutHCData")
                                 result.success(false)
                         }
                 }
         }
 
         fun writeBloodPressureHC(call: MethodCall, result: Result) {
-                val systolic = call.argument<Double>("systolic")!!
-                val diastolic = call.argument<Double>("diastolic")!!
-                val startTime = Instant.ofEpochMilli(call.argument<Long>("startTime")!!)
-                val endTime = Instant.ofEpochMilli(call.argument<Long>("endTime")!!)
+                try {
+                        val systolic = call.argument<Double>("systolic")!!
+                        val diastolic = call.argument<Double>("diastolic")!!
+                        val startTime = Instant.ofEpochMilli(call.argument<Long>("startTime")!!)
+                        val endTime = Instant.ofEpochMilli(call.argument<Long>("endTime")!!)
 
-                scope.launch {
-                        try {
-                                healthConnectClient.insertRecords(
-                                                listOf(
-                                                                BloodPressureRecord(
-                                                                                time = startTime,
-                                                                                systolic =
-                                                                                                Pressure.millimetersOfMercury(
-                                                                                                                systolic
-                                                                                                ),
-                                                                                diastolic =
-                                                                                                Pressure.millimetersOfMercury(
-                                                                                                                diastolic
-                                                                                                ),
-                                                                                zoneOffset = null,
-                                                                ),
-                                                ),
-                                )
-                                result.success(true)
-                                Log.i(
-                                                "FLUTTER_HEALTH::SUCCESS",
-                                                "[Health Connect] Blood pressure was successfully added!",
-                                )
-                        } catch (e: Exception) {
-                                Log.w(
-                                                "FLUTTER_HEALTH::ERROR",
-                                                "[Health Connect] There was an error adding the blood pressure",
-                                )
-                                Log.w("FLUTTER_HEALTH::ERROR", e.message ?: "unknown error")
-                                Log.w("FLUTTER_HEALTH::ERROR", e.stackTrace.toString())
+                        scope.launch {
+                                try {
+                                        healthConnectClient.insertRecords(
+                                                        listOf(
+                                                                        BloodPressureRecord(
+                                                                                        time = startTime,
+                                                                                        systolic =
+                                                                                                        Pressure.millimetersOfMercury(
+                                                                                                                        systolic
+                                                                                                        ),
+                                                                                        diastolic =
+                                                                                                        Pressure.millimetersOfMercury(
+                                                                                                                        diastolic
+                                                                                                        ),
+                                                                                        zoneOffset = null,
+                                                                        ),
+                                                        ),
+                                        )
+                                        result.success(true)
+                                        Log.i(
+                                                        "FLUTTER_HEALTH::SUCCESS",
+                                                        "[Health Connect] Blood pressure was successfully added!",
+                                        )
+                                } catch (e: Exception) {
+                                        if (e.message?.contains("API call quota exceeded") == true) {
+                                                Log.w("FLUTTER_HEALTH::ERROR", "API call quota exceeded. Please try again later.")
+                                                result.success(false)
+                                        } else {
+                                                Log.w("FLUTTER_HEALTH::ERROR", "unable to writeBloodPressureHC")
+                                                result.success(false)
+                                        }
+                                }
+                        }
+                } catch (e: Exception) {
+                        if (e.message?.contains("API call quota exceeded") == true) {
+                                Log.w("FLUTTER_HEALTH::ERROR", "API call quota exceeded. Please try again later.")
+                                result.success(false)
+                        } else {
+                                Log.w("FLUTTER_HEALTH::ERROR", "unable to writeBloodPressureHC")
                                 result.success(false)
                         }
                 }
         }
 
         fun deleteHCData(call: MethodCall, result: Result) {
-                val type = call.argument<String>("dataTypeKey")!!
-                val startTime = Instant.ofEpochMilli(call.argument<Long>("startTime")!!)
-                val endTime = Instant.ofEpochMilli(call.argument<Long>("endTime")!!)
-                if (!MapToHCType.containsKey(type)) {
-                        Log.w("FLUTTER_HEALTH::ERROR", "Datatype " + type + " not found in HC")
-                        result.success(false)
-                        return
-                }
-                val classType = MapToHCType[type]!!
+                try {
+                        val type = call.argument<String>("dataTypeKey")!!
+                        val startTime = Instant.ofEpochMilli(call.argument<Long>("startTime")!!)
+                        val endTime = Instant.ofEpochMilli(call.argument<Long>("endTime")!!)
+                        if (!MapToHCType.containsKey(type)) {
+                                Log.w("FLUTTER_HEALTH::ERROR", "Datatype " + type + " not found in HC")
+                                result.success(false)
+                                return
+                        }
+                        val classType = MapToHCType[type]!!
 
-                scope.launch {
-                        try {
-                                healthConnectClient.deleteRecords(
-                                                recordType = classType,
-                                                timeRangeFilter =
-                                                                TimeRangeFilter.between(
-                                                                                startTime,
-                                                                                endTime
-                                                                ),
-                                )
-                                result.success(true)
-                        } catch (e: Exception) {
+                        scope.launch {
+                                try {
+                                        healthConnectClient.deleteRecords(
+                                                        recordType = classType,
+                                                        timeRangeFilter =
+                                                                        TimeRangeFilter.between(
+                                                                                        startTime,
+                                                                                        endTime
+                                                                        ),
+                                        )
+                                        result.success(true)
+                                } catch (e: Exception) {
+                                        if (e.message?.contains("API call quota exceeded") == true) {
+                                                Log.w("FLUTTER_HEALTH::ERROR", "API call quota exceeded. Please try again later.")
+                                                result.success(false)
+                                        } else {
+                                                Log.w("FLUTTER_HEALTH::ERROR", "unable to deleteHCData")
+                                                result.success(false)
+                                        }
+                                }
+                        }
+                } catch (e: Exception) {
+                        if (e.message?.contains("API call quota exceeded") == true) {
+                                Log.w("FLUTTER_HEALTH::ERROR", "API call quota exceeded. Please try again later.")
+                                result.success(false)
+                        } else {
+                                Log.w("FLUTTER_HEALTH::ERROR", "unable to deleteHCData")
                                 result.success(false)
                         }
                 }

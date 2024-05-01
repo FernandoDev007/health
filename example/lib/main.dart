@@ -1,11 +1,11 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:carp_serializable/carp_serializable.dart';
 import 'package:flutter/material.dart';
 import 'package:health/health.dart';
 import 'package:health_example/util.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:carp_serializable/carp_serializable.dart';
 
 void main() => runApp(HealthApp());
 
