@@ -45,15 +45,15 @@
     },
     {
       "name": "device_info_plus",
-      "rootUri": "file:///Users/inuba-devs/.pub-cache/git/plus_plugins-e81de407b65d0430aa874adaa880ae3fa7401bf0/packages/device_info_plus/device_info_plus",
+      "rootUri": "file:///Users/inuba-devs/.pub-cache/hosted/pub.dev/device_info_plus-10.1.0",
       "packageUri": "lib/",
       "languageVersion": "3.3"
     },
     {
       "name": "device_info_plus_platform_interface",
-      "rootUri": "file:///Users/inuba-devs/.pub-cache/git/plus_plugins-e81de407b65d0430aa874adaa880ae3fa7401bf0/packages/device_info_plus/device_info_plus_platform_interface",
+      "rootUri": "file:///Users/inuba-devs/.pub-cache/hosted/pub.dev/device_info_plus_platform_interface-7.0.0",
       "packageUri": "lib/",
-      "languageVersion": "2.18"
+      "languageVersion": "2.12"
     },
     {
       "name": "fake_async",
@@ -266,7 +266,7 @@
       "languageVersion": "3.2"
     }
   ],
-  "generated": "2024-05-01T10:04:54.360271Z",
+  "generated": "2024-05-01T10:26:38.703804Z",
   "generator": "pub",
   "generatorVersion": "3.3.4"
 }

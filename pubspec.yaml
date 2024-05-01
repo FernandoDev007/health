@@ -12,11 +12,7 @@ dependencies:
   flutter:
     sdk: flutter
   intl: ">=0.18.0 <1.0.0"
-  device_info_plus:
-    git:
-      url: https://github.com/FernandoDev007/plus_plugins.git
-      path: packages/device_info_plus/device_info_plus
-      ref: inuba
+  device_info_plus: ^10.1.0
   json_annotation: ^4.8.0
   carp_serializable: ^1.1.0 # polymorphic json serialization
 
