@@ -45,13 +45,13 @@
     },
     {
       "name": "device_info_plus",
-      "rootUri": "file:///C:/Users/Aldahir%20Fernando/AppData/Local/Pub/Cache/git/plus_plugins-e81de407b65d0430aa874adaa880ae3fa7401bf0/packages/device_info_plus/device_info_plus",
+      "rootUri": "file:///C:/Users/Aldahir%20Fernando/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-10.1.2",
       "packageUri": "lib/",
       "languageVersion": "3.3"
     },
     {
       "name": "device_info_plus_platform_interface",
-      "rootUri": "file:///C:/Users/Aldahir%20Fernando/AppData/Local/Pub/Cache/git/plus_plugins-e81de407b65d0430aa874adaa880ae3fa7401bf0/packages/device_info_plus/device_info_plus_platform_interface",
+      "rootUri": "file:///C:/Users/Aldahir%20Fernando/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus_platform_interface-7.0.1",
       "packageUri": "lib/",
       "languageVersion": "2.18"
     },
@@ -111,13 +111,13 @@
     },
     {
       "name": "leak_tracker",
-      "rootUri": "file:///C:/Users/Aldahir%20Fernando/AppData/Local/Pub/Cache/hosted/pub.dev/leak_tracker-10.0.4",
+      "rootUri": "file:///C:/Users/Aldahir%20Fernando/AppData/Local/Pub/Cache/hosted/pub.dev/leak_tracker-10.0.5",
       "packageUri": "lib/",
       "languageVersion": "3.2"
     },
     {
       "name": "leak_tracker_flutter_testing",
-      "rootUri": "file:///C:/Users/Aldahir%20Fernando/AppData/Local/Pub/Cache/hosted/pub.dev/leak_tracker_flutter_testing-3.0.3",
+      "rootUri": "file:///C:/Users/Aldahir%20Fernando/AppData/Local/Pub/Cache/hosted/pub.dev/leak_tracker_flutter_testing-3.0.5",
       "packageUri": "lib/",
       "languageVersion": "3.2"
     },
@@ -135,13 +135,13 @@
     },
     {
       "name": "material_color_utilities",
-      "rootUri": "file:///C:/Users/Aldahir%20Fernando/AppData/Local/Pub/Cache/hosted/pub.dev/material_color_utilities-0.8.0",
+      "rootUri": "file:///C:/Users/Aldahir%20Fernando/AppData/Local/Pub/Cache/hosted/pub.dev/material_color_utilities-0.11.1",
       "packageUri": "lib/",
       "languageVersion": "2.17"
     },
     {
       "name": "meta",
-      "rootUri": "file:///C:/Users/Aldahir%20Fernando/AppData/Local/Pub/Cache/hosted/pub.dev/meta-1.12.0",
+      "rootUri": "file:///C:/Users/Aldahir%20Fernando/AppData/Local/Pub/Cache/hosted/pub.dev/meta-1.15.0",
       "packageUri": "lib/",
       "languageVersion": "2.12"
     },
@@ -225,9 +225,9 @@
     },
     {
       "name": "test_api",
-      "rootUri": "file:///C:/Users/Aldahir%20Fernando/AppData/Local/Pub/Cache/hosted/pub.dev/test_api-0.7.0",
+      "rootUri": "file:///C:/Users/Aldahir%20Fernando/AppData/Local/Pub/Cache/hosted/pub.dev/test_api-0.7.2",
       "packageUri": "lib/",
-      "languageVersion": "3.0"
+      "languageVersion": "3.2"
     },
     {
       "name": "vector_math",
@@ -237,7 +237,7 @@
     },
     {
       "name": "vm_service",
-      "rootUri": "file:///C:/Users/Aldahir%20Fernando/AppData/Local/Pub/Cache/hosted/pub.dev/vm_service-14.2.1",
+      "rootUri": "file:///C:/Users/Aldahir%20Fernando/AppData/Local/Pub/Cache/hosted/pub.dev/vm_service-14.2.5",
       "packageUri": "lib/",
       "languageVersion": "3.3"
     },
@@ -266,10 +266,10 @@
       "languageVersion": "3.2"
     }
   ],
-  "generated": "2024-07-24T09:37:35.235240Z",
+  "generated": "2024-09-19T10:51:23.198254Z",
   "generator": "pub",
-  "generatorVersion": "3.4.4",
+  "generatorVersion": "3.5.3",
   "flutterRoot": "file:///C:/flutter",
-  "flutterVersion": "3.22.3",
+  "flutterVersion": "3.24.3",
   "pubCache": "file:///C:/Users/Aldahir%20Fernando/AppData/Local/Pub/Cache"
 }
