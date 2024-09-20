@@ -2722,8 +2722,12 @@ class HealthPlugin(private var channel: MethodChannel? = null) :
                 val permissions = (args["permissions"] as? ArrayList<*>)?.filterIsInstance<Int>()!!
 
                 var permList = mutableListOf<String>()
+
+                var responseSent = false
+
                 for ((i, typeKey) in types.withIndex()) {
                         if (!MapToHCType.containsKey(typeKey)) {
+                                if (responseSent) return
                                 Log.w(
                                                 "FLUTTER_HEALTH::ERROR",
                                                 "Datatype " + typeKey + " not found in HC"
@@ -2782,13 +2786,15 @@ class HealthPlugin(private var channel: MethodChannel? = null) :
                                 }
                         }
                 }
-                if (healthConnectRequestPermissionsLauncher == null) {
+                if (healthConnectRequestPermissionsLauncher == null && !responseSent) {
                         result.success(false)
                         Log.i("FLUTTER_HEALTH", "Permission launcher not found")
                         return
                 }
 
-                healthConnectRequestPermissionsLauncher!!.launch(permList.toSet())
+                if (!responseSent) {
+                        healthConnectRequestPermissionsLauncher!!.launch(permList.toSet())
+                }
         }
 
         fun getHCData(call: MethodCall, result: Result) {
