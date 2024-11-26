@@ -95,6 +95,16 @@ class HealthPlugin(private var channel: MethodChannel? = null) :
     private lateinit var healthConnectClient: HealthConnectClient
     private lateinit var scope: CoroutineScope
 
+    // Wrapper for basic HealthConnect operations
+    private fun executeHealthConnectOperation(operation: () -> Unit, errorMessage: String) {
+        try {
+            operation()
+        } catch (e: Exception) {
+            Log.w("FLUTTER_HEALTH::ERROR", "HealthConnect quota exceeded: $errorMessage")
+            Log.w("FLUTTER_HEALTH::ERROR", "Error details: ${e.message}")
+            Log.w("FLUTTER_HEALTH::ERROR", "Stack trace: ${e.stackTrace}")
+        }
+    }
 
     override fun onAttachedToEngine(
         @NonNull flutterPluginBinding: FlutterPlugin.FlutterPluginBinding
@@ -104,13 +114,13 @@ class HealthPlugin(private var channel: MethodChannel? = null) :
         channel?.setMethodCallHandler(this)
         context = flutterPluginBinding.applicationContext
         threadPoolExecutor = Executors.newFixedThreadPool(4)
-        checkAvailability()
-        if (healthConnectAvailable) {
-            healthConnectClient =
-                HealthConnectClient.getOrCreate(
-                    flutterPluginBinding.applicationContext
-                )
-        }
+        
+        executeHealthConnectOperation({
+            checkAvailability()
+            if (healthConnectAvailable) {
+                healthConnectClient = HealthConnectClient.getOrCreate(flutterPluginBinding.applicationContext)
+            }
+        }, "Failed to initialize HealthConnect")
     }
 
     override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
@@ -142,24 +152,31 @@ class HealthPlugin(private var channel: MethodChannel? = null) :
 
     /** Handle calls from the MethodChannel */
     override fun onMethodCall(call: MethodCall, result: Result) {
-        when (call.method) {
-            "installHealthConnect" -> installHealthConnect(call, result)
-            "getHealthConnectSdkStatus" -> getHealthConnectSdkStatus(call, result)
-            "hasPermissions" -> hasPermissions(call, result)
-            "requestAuthorization" -> requestAuthorization(call, result)
-            "revokePermissions" -> revokePermissions(call, result)
-            "getData" -> getData(call, result)
-            "getIntervalData" -> getIntervalData(call, result)
-            "writeData" -> writeData(call, result)
-            "delete" -> deleteData(call, result)
-            "getAggregateData" -> getAggregateData(call, result)
-            "getTotalStepsInInterval" -> getTotalStepsInInterval(call, result)
-            "writeWorkoutData" -> writeWorkoutData(call, result)
-            "writeBloodPressure" -> writeBloodPressure(call, result)
-            "writeBloodOxygen" -> writeBloodOxygen(call, result)
-            "writeMenstruationFlow" -> writeMenstruationFlow(call, result)
-            "writeMeal" -> writeMeal(call, result)
-            else -> result.notImplemented()
+        try {
+            when (call.method) {
+                "installHealthConnect" -> installHealthConnect(call, result)
+                "getHealthConnectSdkStatus" -> getHealthConnectSdkStatus(call, result)
+                "hasPermissions" -> hasPermissions(call, result)
+                "requestAuthorization" -> requestAuthorization(call, result)
+                "revokePermissions" -> revokePermissions(call, result)
+                "getData" -> getData(call, result)
+                "getIntervalData" -> getIntervalData(call, result)
+                "writeData" -> writeData(call, result)
+                "delete" -> deleteData(call, result)
+                "getAggregateData" -> getAggregateData(call, result)
+                "getTotalStepsInInterval" -> getTotalStepsInInterval(call, result)
+                "writeWorkoutData" -> writeWorkoutData(call, result)
+                "writeBloodPressure" -> writeBloodPressure(call, result)
+                "writeBloodOxygen" -> writeBloodOxygen(call, result)
+                "writeMenstruationFlow" -> writeMenstruationFlow(call, result)
+                "writeMeal" -> writeMeal(call, result)
+                else -> result.notImplemented()
+            }
+        } catch (e: Exception) {
+            Log.w("FLUTTER_HEALTH::ERROR", "Error handling method call")
+            Log.w("FLUTTER_HEALTH::ERROR", "Error details: ${e.message}")
+            Log.w("FLUTTER_HEALTH::ERROR", "Stack trace: ${e.stackTrace}")
+            result.error("ERROR", "Failed to handle method call", e.message)
         }
     }
 
@@ -199,92 +216,108 @@ class HealthPlugin(private var channel: MethodChannel? = null) :
     private var healthConnectStatus = HealthConnectClient.SDK_UNAVAILABLE
 
     private fun checkAvailability() {
-        healthConnectStatus = HealthConnectClient.getSdkStatus(context!!)
-        healthConnectAvailable = healthConnectStatus == HealthConnectClient.SDK_AVAILABLE
+        try {
+            healthConnectStatus = HealthConnectClient.getSdkStatus(context!!)
+            healthConnectAvailable = healthConnectStatus == HealthConnectClient.SDK_AVAILABLE
+        } catch (e: Exception) {
+            Log.w("FLUTTER_HEALTH::ERROR", "HealthConnect quota exceeded: Failed to check availability")
+            Log.w("FLUTTER_HEALTH::ERROR", "Error details: ${e.message}")
+            healthConnectStatus = HealthConnectClient.SDK_UNAVAILABLE
+            healthConnectAvailable = false
+        }
     }
 
     private fun installHealthConnect(call: MethodCall, result: Result) {
-        val uriString =
-            "market://details?id=com.google.android.apps.healthdata&url=healthconnect%3A%2F%2Fonboarding"
-        context!!.startActivity(
-            Intent(Intent.ACTION_VIEW).apply {
-                setPackage("com.android.vending")
-                data = Uri.parse(uriString)
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                putExtra("overlay", true)
-                putExtra("callerId", context!!.packageName)
-            }
-        )
-        result.success(null)
+        try {
+            val uriString = "market://details?id=com.google.android.apps.healthdata&url=healthconnect%3A%2F%2Fonboarding"
+            context!!.startActivity(
+                Intent(Intent.ACTION_VIEW).apply {
+                    setPackage("com.android.vending")
+                    data = Uri.parse(uriString)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    putExtra("overlay", true)
+                    putExtra("callerId", context!!.packageName)
+                }
+            )
+            result.success(null)
+        } catch (e: Exception) {
+            Log.w("FLUTTER_HEALTH::ERROR", "Failed to launch Health Connect installation")
+            Log.w("FLUTTER_HEALTH::ERROR", "Error details: ${e.message}")
+            result.success(false)
+        }
     }
 
     private fun onHealthConnectPermissionCallback(permissionGranted: Set<String>) {
-        if (permissionGranted.isEmpty()) {
+        try {
+            if (permissionGranted.isEmpty()) {
+                mResult?.success(false)
+                Log.i("FLUTTER_HEALTH", "Health Connect permissions were not granted! Make sure to declare the required permissions in the AndroidManifest.xml file.")
+            } else {
+                mResult?.success(true)
+                Log.i("FLUTTER_HEALTH", "${permissionGranted.size} Health Connect permissions were granted!")
+                Log.i("FLUTTER_HEALTH", "Permissions granted: $permissionGranted")
+            }
+        } catch (e: Exception) {
+            Log.w("FLUTTER_HEALTH::ERROR", "Error in permission callback")
+            Log.w("FLUTTER_HEALTH::ERROR", "Error details: ${e.message}")
             mResult?.success(false)
-            Log.i("FLUTTER_HEALTH", "Health Connect permissions were not granted! Make sure to declare the required permissions in the AndroidManifest.xml file.")
-        } else {
-            mResult?.success(true)
-            Log.i("FLUTTER_HEALTH", "${permissionGranted.size} Health Connect permissions were granted!")
-            
-            // log the permissions granted for debugging
-            Log.i("FLUTTER_HEALTH", "Permissions granted: $permissionGranted") 
         }
     }
 
     /** Save a Nutrition measurement with calories, carbs, protein, fat, name and mealType */
     private fun writeMeal(call: MethodCall, result: Result) {
-        val startTime = Instant.ofEpochMilli(call.argument<Long>("start_time")!!)
-        val endTime = Instant.ofEpochMilli(call.argument<Long>("end_time")!!)
-        val calories = call.argument<Double>("calories")
-        val protein = call.argument<Double>("protein") as Double?
-        val carbs = call.argument<Double>("carbs") as Double?
-        val fat = call.argument<Double>("fat") as Double?
-        val caffeine = call.argument<Double>("caffeine") as Double?
-        val vitaminA = call.argument<Double>("vitamin_a") as Double?
-        val b1Thiamine = call.argument<Double>("b1_thiamine") as Double?
-        val b2Riboflavin = call.argument<Double>("b2_riboflavin") as Double?
-        val b3Niacin = call.argument<Double>("b3_niacin") as Double?
-        val b5PantothenicAcid = call.argument<Double>("b5_pantothenic_acid") as Double?
-        val b6Pyridoxine = call.argument<Double>("b6_pyridoxine") as Double?
-        val b7Biotin = call.argument<Double>("b7_biotin") as Double?
-        val b9Folate = call.argument<Double>("b9_folate") as Double?
-        val b12Cobalamin = call.argument<Double>("b12_cobalamin") as Double?
-        val vitaminC = call.argument<Double>("vitamin_c") as Double?
-        val vitaminD = call.argument<Double>("vitamin_d") as Double?
-        val vitaminE = call.argument<Double>("vitamin_e") as Double?
-        val vitaminK = call.argument<Double>("vitamin_k") as Double?
-        val calcium = call.argument<Double>("calcium") as Double?
-        val chloride = call.argument<Double>("chloride") as Double?
-        val cholesterol = call.argument<Double>("cholesterol") as Double?
-        // Choline is not yet supported by Health Connect
-        // val choline = call.argument<Double>("choline") as Double?
-        val chromium = call.argument<Double>("chromium") as Double?
-        val copper = call.argument<Double>("copper") as Double?
-        val fatUnsaturated = call.argument<Double>("fat_unsaturated") as Double?
-        val fatMonounsaturated = call.argument<Double>("fat_monounsaturated") as Double?
-        val fatPolyunsaturated = call.argument<Double>("fat_polyunsaturated") as Double?
-        val fatSaturated = call.argument<Double>("fat_saturated") as Double?
-        val fatTransMonoenoic = call.argument<Double>("fat_trans_monoenoic") as Double?
-        val fiber = call.argument<Double>("fiber") as Double?
-        val iodine = call.argument<Double>("iodine") as Double?
-        val iron = call.argument<Double>("iron") as Double?
-        val magnesium = call.argument<Double>("magnesium") as Double?
-        val manganese = call.argument<Double>("manganese") as Double?
-        val molybdenum = call.argument<Double>("molybdenum") as Double?
-        val phosphorus = call.argument<Double>("phosphorus") as Double?
-        val potassium = call.argument<Double>("potassium") as Double?
-        val selenium = call.argument<Double>("selenium") as Double?
-        val sodium = call.argument<Double>("sodium") as Double?
-        val sugar = call.argument<Double>("sugar") as Double?
-        // Water is not support on a food in Health Connect
-        // val water = call.argument<Double>("water") as Double?
-        val zinc = call.argument<Double>("zinc") as Double?
-
-        val name = call.argument<String>("name")
-        val mealType = call.argument<String>("meal_type")!!
-
         scope.launch {
             try {
+                val startTime = Instant.ofEpochMilli(call.argument<Long>("start_time")!!)
+                val endTime = Instant.ofEpochMilli(call.argument<Long>("end_time")!!)
+                val calories = call.argument<Double>("calories")
+                val protein = call.argument<Double>("protein") as Double?
+                val carbs = call.argument<Double>("carbs") as Double?
+                val fat = call.argument<Double>("fat") as Double?
+                val caffeine = call.argument<Double>("caffeine") as Double?
+                val vitaminA = call.argument<Double>("vitamin_a") as Double?
+                val b1Thiamine = call.argument<Double>("b1_thiamine") as Double?
+                val b2Riboflavin = call.argument<Double>("b2_riboflavin") as Double?
+                val b3Niacin = call.argument<Double>("b3_niacin") as Double?
+                val b5PantothenicAcid = call.argument<Double>("b5_pantothenic_acid") as Double?
+                val b6Pyridoxine = call.argument<Double>("b6_pyridoxine") as Double?
+                val b7Biotin = call.argument<Double>("b7_biotin") as Double?
+                val b9Folate = call.argument<Double>("b9_folate") as Double?
+                val b12Cobalamin = call.argument<Double>("b12_cobalamin") as Double?
+                val vitaminC = call.argument<Double>("vitamin_c") as Double?
+                val vitaminD = call.argument<Double>("vitamin_d") as Double?
+                val vitaminE = call.argument<Double>("vitamin_e") as Double?
+                val vitaminK = call.argument<Double>("vitamin_k") as Double?
+                val calcium = call.argument<Double>("calcium") as Double?
+                val chloride = call.argument<Double>("chloride") as Double?
+                val cholesterol = call.argument<Double>("cholesterol") as Double?
+                // Choline is not yet supported by Health Connect
+                // val choline = call.argument<Double>("choline") as Double?
+                val chromium = call.argument<Double>("chromium") as Double?
+                val copper = call.argument<Double>("copper") as Double?
+                val fatUnsaturated = call.argument<Double>("fat_unsaturated") as Double?
+                val fatMonounsaturated = call.argument<Double>("fat_monounsaturated") as Double?
+                val fatPolyunsaturated = call.argument<Double>("fat_polyunsaturated") as Double?
+                val fatSaturated = call.argument<Double>("fat_saturated") as Double?
+                val fatTransMonoenoic = call.argument<Double>("fat_trans_monoenoic") as Double?
+                val fiber = call.argument<Double>("fiber") as Double?
+                val iodine = call.argument<Double>("iodine") as Double?
+                val iron = call.argument<Double>("iron") as Double?
+                val magnesium = call.argument<Double>("magnesium") as Double?
+                val manganese = call.argument<Double>("manganese") as Double?
+                val molybdenum = call.argument<Double>("molybdenum") as Double?
+                val phosphorus = call.argument<Double>("phosphorus") as Double?
+                val potassium = call.argument<Double>("potassium") as Double?
+                val selenium = call.argument<Double>("selenium") as Double?
+                val sodium = call.argument<Double>("sodium") as Double?
+                val sugar = call.argument<Double>("sugar") as Double?
+                // Water is not support on a food in Health Connect
+                // val water = call.argument<Double>("water") as Double?
+                val zinc = call.argument<Double>("zinc") as Double?
+
+                val name = call.argument<String>("name")
+                val mealType = call.argument<String>("meal_type")!!
+
                 val list = mutableListOf<Record>()
                 list.add(
                     NutritionRecord(
@@ -348,12 +381,9 @@ class HealthPlugin(private var channel: MethodChannel? = null) :
                     "[Health Connect] Meal was successfully added!"
                 )
             } catch (e: Exception) {
-                Log.w(
-                    "FLUTTER_HEALTH::ERROR",
-                    "[Health Connect] There was an error adding the meal",
-                )
-                Log.w("FLUTTER_HEALTH::ERROR", e.message ?: "unknown error")
-                Log.w("FLUTTER_HEALTH::ERROR", e.stackTrace.toString())
+                Log.w("FLUTTER_HEALTH::ERROR", "HealthConnect quota exceeded while writing meal data")
+                Log.w("FLUTTER_HEALTH::ERROR", "Error details: ${e.message}")
+                Log.w("FLUTTER_HEALTH::ERROR", "Stack trace: ${e.stackTrace}")
                 result.success(false)
             }
         }
@@ -363,18 +393,40 @@ class HealthPlugin(private var channel: MethodChannel? = null) :
      * Save menstrual flow data
      */
     private fun writeMenstruationFlow(call: MethodCall, result: Result) {
-        writeData(call, result)
+        scope.launch {
+            try {
+                writeData(call, result)
+            } catch (e: Exception) {
+                Log.w("FLUTTER_HEALTH::ERROR", "HealthConnect quota exceeded while writing menstruation flow data")
+                Log.w("FLUTTER_HEALTH::ERROR", "Error details: ${e.message}")
+                result.success(false)
+            }
+        }
     }
 
     /**
      * Save the blood oxygen saturation
      */
     private fun writeBloodOxygen(call: MethodCall, result: Result) {
-        writeData(call, result)
+        scope.launch {
+            try {
+                writeData(call, result)
+            } catch (e: Exception) {
+                Log.w("FLUTTER_HEALTH::ERROR", "HealthConnect quota exceeded while writing blood oxygen data")
+                Log.w("FLUTTER_HEALTH::ERROR", "Error details: ${e.message}")
+                result.success(false)
+            }
+        }
     }
 
     private fun getIntervalData(call: MethodCall, result: Result) {
-        getAggregateData(call, result)
+        try {
+            getAggregateData(call, result)
+        } catch (e: Exception) {
+            Log.w("FLUTTER_HEALTH::ERROR", "HealthConnect quota exceeded while getting interval data")
+            Log.w("FLUTTER_HEALTH::ERROR", "Error details: ${e.message}")
+            result.success(null)
+        }
     }
 
     /**
@@ -385,10 +437,16 @@ class HealthPlugin(private var channel: MethodChannel? = null) :
      */
     private fun revokePermissions(call: MethodCall, result: Result) {
         scope.launch {
-            Log.i("Health", "Disabling Health Connect")
-            healthConnectClient.permissionController.revokeAllPermissions()
+            try {
+                Log.i("Health", "Disabling Health Connect")
+                healthConnectClient.permissionController.revokeAllPermissions()
+                result.success(true)
+            } catch (e: Exception) {
+                Log.w("FLUTTER_HEALTH::ERROR", "HealthConnect quota exceeded while revoking permissions")
+                Log.w("FLUTTER_HEALTH::ERROR", "Error details: ${e.message}")
+                result.success(false)
+            }
         }
-        result.success(true)
     }
 
     private fun getTotalStepsInInterval(call: MethodCall, result: Result) {
@@ -396,48 +454,38 @@ class HealthPlugin(private var channel: MethodChannel? = null) :
         val end = call.argument<Long>("endTime")!!
         val recordingMethodsToFilter = call.argument<List<Int>>("recordingMethodsToFilter")!!
 
-        if (recordingMethodsToFilter.isEmpty()) {
-            getAggregatedStepCount(start, end, result)
-        } else {
-            getStepCountFiltered(start, end, recordingMethodsToFilter, result)
+        try {
+            if (recordingMethodsToFilter.isEmpty()) {
+                getAggregatedStepCount(start, end, result)
+            } else {
+                getStepCountFiltered(start, end, recordingMethodsToFilter, result)
+            }
+        } catch (e: Exception) {
+            Log.w("FLUTTER_HEALTH::ERROR", "HealthConnect quota exceeded while getting step count")
+            Log.w("FLUTTER_HEALTH::ERROR", "Time range: $start to $end")
+            Log.w("FLUTTER_HEALTH::ERROR", "Error details: ${e.message}")
+            result.success(null)
         }
     }
 
     private fun getAggregatedStepCount(start: Long, end: Long, result: Result) {
-        val startInstant = Instant.ofEpochMilli(start)
-        val endInstant = Instant.ofEpochMilli(end)
         scope.launch {
             try {
-                val response =
-                    healthConnectClient.aggregate(
-                        AggregateRequest(
-                            metrics =
-                            setOf(
-                                StepsRecord.COUNT_TOTAL,
-                            ),
-                            timeRangeFilter =
-                            TimeRangeFilter.between(
-                                startInstant,
-                                endInstant
-                            ),
-                        ),
+                val response = healthConnectClient.aggregate(
+                    AggregateRequest(
+                        metrics = setOf(StepsRecord.COUNT_TOTAL),
+                        timeRangeFilter = TimeRangeFilter.between(
+                            Instant.ofEpochMilli(start),
+                            Instant.ofEpochMilli(end)
+                        )
                     )
-                // The result may be null if no data is available in the
-                // time range.
-                val stepsInInterval =
-                    response[StepsRecord.COUNT_TOTAL] ?: 0L
-
-                Log.i(
-                    "FLUTTER_HEALTH::SUCCESS",
-                    "returning $stepsInInterval steps"
                 )
+                val stepsInInterval = response[StepsRecord.COUNT_TOTAL] ?: 0L
                 result.success(stepsInInterval)
             } catch (e: Exception) {
-                Log.e(
-                    "FLUTTER_HEALTH::ERROR",
-                    "Unable to return steps due to the following exception:"
-                )
-                Log.e("FLUTTER_HEALTH::ERROR", Log.getStackTraceString(e))
+                Log.w("FLUTTER_HEALTH::ERROR", "HealthConnect quota exceeded while getting aggregated step count")
+                Log.w("FLUTTER_HEALTH::ERROR", "Time range: $start to $end")
+                Log.w("FLUTTER_HEALTH::ERROR", "Error details: ${e.message}")
                 result.success(null)
             }
         }
@@ -468,25 +516,26 @@ class HealthPlugin(private var channel: MethodChannel? = null) :
                 )
                 result.success(totalSteps)
             } catch (e: Exception) {
-                Log.e(
-                    "FLUTTER_HEALTH::ERROR",
-                    "Unable to return steps due to the following exception:"
-                )
-                Log.e("FLUTTER_HEALTH::ERROR", Log.getStackTraceString(e))
+                Log.w("FLUTTER_HEALTH::ERROR", "HealthConnect quota exceeded while getting filtered step count")
+                Log.w("FLUTTER_HEALTH::ERROR", "Time range: $start to $end")
+                Log.w("FLUTTER_HEALTH::ERROR", "Error details: ${e.message}")
                 result.success(null)
             }
         }
     }
 
     private fun getHealthConnectSdkStatus(call: MethodCall, result: Result) {
-        checkAvailability()
-        if (healthConnectAvailable) {
-            healthConnectClient =
-                HealthConnectClient.getOrCreate(
-                    context!!
-                )
+        try {
+            checkAvailability()
+            if (healthConnectAvailable) {
+                healthConnectClient = HealthConnectClient.getOrCreate(context!!)
+            }
+            result.success(healthConnectStatus)
+        } catch (e: Exception) {
+            Log.w("FLUTTER_HEALTH::ERROR", "HealthConnect quota exceeded while checking SDK status")
+            Log.w("FLUTTER_HEALTH::ERROR", "Error details: ${e.message}")
+            result.success(HealthConnectClient.SDK_UNAVAILABLE)
         }
-        result.success(healthConnectStatus)
     }
     
     /** Filter records by recording methods */
@@ -494,16 +543,22 @@ class HealthPlugin(private var channel: MethodChannel? = null) :
         recordingMethodsToFilter: List<Int>,
         records: List<Record>
     ): List<Record> {
-        if (recordingMethodsToFilter.isEmpty()) {
-            return records
-        }
+        try {
+            if (recordingMethodsToFilter.isEmpty()) {
+                return records
+            }
 
-        return records.filter { record ->
-            Log.i(
-                "FLUTTER_HEALTH",
-                "Filtering record with recording method ${record.metadata.recordingMethod}, filtering by $recordingMethodsToFilter. Result: ${recordingMethodsToFilter.contains(record.metadata.recordingMethod)}"
-            )
-            return@filter !recordingMethodsToFilter.contains(record.metadata.recordingMethod)
+            return records.filter { record ->
+                Log.i(
+                    "FLUTTER_HEALTH",
+                    "Filtering record with recording method ${record.metadata.recordingMethod}, filtering by $recordingMethodsToFilter. Result: ${recordingMethodsToFilter.contains(record.metadata.recordingMethod)}"
+                )
+                return@filter !recordingMethodsToFilter.contains(record.metadata.recordingMethod)
+            }
+        } catch (e: Exception) {
+            Log.w("FLUTTER_HEALTH::ERROR", "Error filtering records by recording methods")
+            Log.w("FLUTTER_HEALTH::ERROR", "Error details: ${e.message}")
+            return emptyList()
         }
     }
 
@@ -512,74 +567,81 @@ class HealthPlugin(private var channel: MethodChannel? = null) :
         val types = (args["types"] as? ArrayList<*>)?.filterIsInstance<String>()!!
         val permissions = (args["permissions"] as? ArrayList<*>)?.filterIsInstance<Int>()!!
 
-        val permList = mutableListOf<String>()
-        for ((i, typeKey) in types.withIndex()) {
-            if (!mapToType.containsKey(typeKey)) {
-                Log.w(
-                    "FLUTTER_HEALTH::ERROR",
-                    "Datatype $typeKey not found in HC"
-                )
-                result.success(false)
-                return
-            }
-            val access = permissions[i]
-            val dataType = mapToType[typeKey]!!
-            if (access == 0) {
-                permList.add(
-                    HealthPermission.getReadPermission(dataType),
-                )
-            } else {
-                permList.addAll(
-                    listOf(
-                        HealthPermission.getReadPermission(
-                            dataType
-                        ),
-                        HealthPermission.getWritePermission(
-                            dataType
-                        ),
-                    ),
-                )
-            }
-            // Workout also needs distance and total energy burned too
-            if (typeKey == WORKOUT) {
-                if (access == 0) {
-                    permList.addAll(
-                        listOf(
-                            HealthPermission.getReadPermission(
-                                DistanceRecord::class
-                            ),
-                            HealthPermission.getReadPermission(
-                                TotalCaloriesBurnedRecord::class
-                            ),
-                        ),
-                    )
-                } else {
-                    permList.addAll(
-                        listOf(
-                            HealthPermission.getReadPermission(
-                                DistanceRecord::class
-                            ),
-                            HealthPermission.getReadPermission(
-                                TotalCaloriesBurnedRecord::class
-                            ),
-                            HealthPermission.getWritePermission(
-                                DistanceRecord::class
-                            ),
-                            HealthPermission.getWritePermission(
-                                TotalCaloriesBurnedRecord::class
-                            ),
-                        ),
-                    )
-                }
-            }
-        }
         scope.launch {
-            result.success(
-                healthConnectClient
-                    .permissionController
-                    .getGrantedPermissions()
-                    .containsAll(permList),
-            )
+            try {
+                val permList = mutableListOf<String>()
+                for ((i, typeKey) in types.withIndex()) {
+                    if (!mapToType.containsKey(typeKey)) {
+                        Log.w(
+                            "FLUTTER_HEALTH::ERROR",
+                            "Datatype $typeKey not found in HC"
+                        )
+                        result.success(false)
+                        return
+                    }
+                    val access = permissions[i]
+                    val dataType = mapToType[typeKey]!!
+                    if (access == 0) {
+                        permList.add(
+                            HealthPermission.getReadPermission(dataType),
+                        )
+                    } else {
+                        permList.addAll(
+                            listOf(
+                                HealthPermission.getReadPermission(
+                                    dataType
+                                ),
+                                HealthPermission.getWritePermission(
+                                    dataType
+                                ),
+                            ),
+                        )
+                    }
+                    // Workout also needs distance and total energy burned too
+                    if (typeKey == WORKOUT) {
+                        if (access == 0) {
+                            permList.addAll(
+                                listOf(
+                                    HealthPermission.getReadPermission(
+                                        DistanceRecord::class
+                                    ),
+                                    HealthPermission.getReadPermission(
+                                        TotalCaloriesBurnedRecord::class
+                                    ),
+                                ),
+                            )
+                        } else {
+                            permList.addAll(
+                                listOf(
+                                    HealthPermission.getReadPermission(
+                                        DistanceRecord::class
+                                    ),
+                                    HealthPermission.getReadPermission(
+                                        TotalCaloriesBurnedRecord::class
+                                    ),
+                                    HealthPermission.getWritePermission(
+                                        DistanceRecord::class
+                                    ),
+                                    HealthPermission.getWritePermission(
+                                        TotalCaloriesBurnedRecord::class
+                                    ),
+                                ),
+                            )
+                        }
+                    }
+                }
+                result.success(
+                    healthConnectClient
+                        .permissionController
+                        .getGrantedPermissions()
+                        .containsAll(permList)
+                )
+            } catch (e: Exception) {
+                Log.w("FLUTTER_HEALTH::ERROR", "HealthConnect quota exceeded while checking permissions")
+                Log.w("FLUTTER_HEALTH::ERROR", "Requested types: $types")
+                Log.w("FLUTTER_HEALTH::ERROR", "Error details: ${e.message}")
+                result.success(false) // Return false to indicate failure
+            }
         }
     }
 
@@ -588,88 +650,94 @@ class HealthPlugin(private var channel: MethodChannel? = null) :
      * type.
      */
     private fun requestAuthorization(call: MethodCall, result: Result) {
-        if (context == null) {
-            result.success(false)
-            return
-        }
-
-        val args = call.arguments as HashMap<*, *>
-        val types = (args["types"] as? ArrayList<*>)?.filterIsInstance<String>()!!
-        val permissions = (args["permissions"] as? ArrayList<*>)?.filterIsInstance<Int>()!!
-        var responseSent = false
-
-        val permList = mutableListOf<String>()
-        for ((i, typeKey) in types.withIndex()) {
-            if (!mapToType.containsKey(typeKey)) {
-                if (responseSent) return
-                Log.w(
-                    "FLUTTER_HEALTH::ERROR",
-                    "Datatype $typeKey not found in HC"
-                )
+        try {
+            if (context == null) {
                 result.success(false)
                 return
             }
-            val access = permissions[i]!!
-            val dataType = mapToType[typeKey]!!
-            if (access == 0) {
-                permList.add(
-                    HealthPermission.getReadPermission(dataType),
-                )
-            } else {
-                permList.addAll(
-                    listOf(
-                        HealthPermission.getReadPermission(
-                            dataType
-                        ),
-                        HealthPermission.getWritePermission(
-                            dataType
-                        ),
-                    ),
-                )
-            }
-            // Workout also needs distance and total energy burned too
-            if (typeKey == WORKOUT) {
+
+            val args = call.arguments as HashMap<*, *>
+            val types = (args["types"] as? ArrayList<*>)?.filterIsInstance<String>()!!
+            val permissions = (args["permissions"] as? ArrayList<*>)?.filterIsInstance<Int>()!!
+            var responseSent = false
+
+            val permList = mutableListOf<String>()
+            for ((i, typeKey) in types.withIndex()) {
+                if (!mapToType.containsKey(typeKey)) {
+                    if (responseSent) return
+                    Log.w(
+                        "FLUTTER_HEALTH::ERROR",
+                        "Datatype $typeKey not found in HC"
+                    )
+                    result.success(false)
+                    return
+                }
+                val access = permissions[i]!!
+                val dataType = mapToType[typeKey]!!
                 if (access == 0) {
-                    permList.addAll(
-                        listOf(
-                            HealthPermission.getReadPermission(
-                                DistanceRecord::class
-                            ),
-                            HealthPermission.getReadPermission(
-                                TotalCaloriesBurnedRecord::class
-                            ),
-                        ),
+                    permList.add(
+                        HealthPermission.getReadPermission(dataType),
                     )
                 } else {
                     permList.addAll(
                         listOf(
                             HealthPermission.getReadPermission(
-                                DistanceRecord::class
-                            ),
-                            HealthPermission.getReadPermission(
-                                TotalCaloriesBurnedRecord::class
+                                dataType
                             ),
                             HealthPermission.getWritePermission(
-                                DistanceRecord::class
-                            ),
-                            HealthPermission.getWritePermission(
-                                TotalCaloriesBurnedRecord::class
+                                dataType
                             ),
                         ),
                     )
                 }
+                // Workout also needs distance and total energy burned too
+                if (typeKey == WORKOUT) {
+                    if (access == 0) {
+                        permList.addAll(
+                            listOf(
+                                HealthPermission.getReadPermission(
+                                    DistanceRecord::class
+                                ),
+                                HealthPermission.getReadPermission(
+                                    TotalCaloriesBurnedRecord::class
+                                ),
+                            ),
+                        )
+                    } else {
+                        permList.addAll(
+                            listOf(
+                                HealthPermission.getReadPermission(
+                                    DistanceRecord::class
+                                ),
+                                HealthPermission.getReadPermission(
+                                    TotalCaloriesBurnedRecord::class
+                                ),
+                                HealthPermission.getWritePermission(
+                                    DistanceRecord::class
+                                ),
+                                HealthPermission.getWritePermission(
+                                    TotalCaloriesBurnedRecord::class
+                                ),
+                            ),
+                        )
+                    }
+                }
             }
-        }
-        if (healthConnectRequestPermissionsLauncher == null && !responseSent) {
-            result.success(false)
-            Log.i("FLUTTER_HEALTH", "Permission launcher not found")
-            return
-        }
+            if (healthConnectRequestPermissionsLauncher == null && !responseSent) {
+                result.success(false)
+                Log.i("FLUTTER_HEALTH", "Permission launcher not found")
+                return
+            }
 
-        // Store the result to be called in [onHealthConnectPermissionCallback]
-        if (!responseSent) {
-            mResult = result
-            healthConnectRequestPermissionsLauncher!!.launch(permList.toSet())
+            // Store the result to be called in [onHealthConnectPermissionCallback]
+            if (!responseSent) {
+                mResult = result
+                healthConnectRequestPermissionsLauncher!!.launch(permList.toSet())
+            }
+        } catch (e: Exception) {
+            Log.w("FLUTTER_HEALTH::ERROR", "HealthConnect quota exceeded while requesting authorization")
+            Log.w("FLUTTER_HEALTH::ERROR", "Error details: ${e.message}")
+            result.success(false)
         }
     }
 
@@ -901,12 +969,11 @@ class HealthPlugin(private var channel: MethodChannel? = null) :
                 }
                 Handler(context!!.mainLooper).run { result.success(healthConnectData) }
             } catch (e: Exception) {
-                Log.i(
-                    "FLUTTER_HEALTH::ERROR",
-                    "Unable to return $dataType due to the following exception:"
-                )
-                Log.e("FLUTTER_HEALTH::ERROR", Log.getStackTraceString(e))
-                result.success(null)
+                Log.w("FLUTTER_HEALTH::ERROR", "HealthConnect quota exceeded while fetching $dataType")
+                Log.w("FLUTTER_HEALTH::ERROR", "Time range: $startTime to $endTime")
+                Log.w("FLUTTER_HEALTH::ERROR", "Error details: ${e.message}")
+                Log.w("FLUTTER_HEALTH::ERROR", "Stack trace: ${e.stackTrace}")
+                result.success(null) // Return null instead of crashing
             }
         }
     }
@@ -916,23 +983,24 @@ class HealthPlugin(private var channel: MethodChannel? = null) :
         dataType: String,
         metadata: Metadata
     ): List<Map<String, Any>> {
-        var sourceName = metadata.dataOrigin
-            .packageName
-        return listOf(
-            mapOf<String, Any>(
-                "uuid" to metadata.id,
-                "stage" to stage.stage,
-                "value" to
-                        ChronoUnit.MINUTES.between(
-                            stage.startTime,
-                            stage.endTime
-                        ),
-                "date_from" to stage.startTime.toEpochMilli(),
-                "date_to" to stage.endTime.toEpochMilli(),
-                "source_id" to "",
-                "source_name" to sourceName,
-            ),
-        )
+        try {
+            var sourceName = metadata.dataOrigin.packageName
+            return listOf(
+                mapOf<String, Any>(
+                    "uuid" to metadata.id,
+                    "stage" to stage.stage,
+                    "value" to ChronoUnit.MINUTES.between(stage.startTime, stage.endTime),
+                    "date_from" to stage.startTime.toEpochMilli(),
+                    "date_to" to stage.endTime.toEpochMilli(),
+                    "source_id" to "",
+                    "source_name" to sourceName,
+                )
+            )
+        } catch (e: Exception) {
+            Log.w("FLUTTER_HEALTH::ERROR", "Error converting record stage")
+            Log.w("FLUTTER_HEALTH::ERROR", "Error details: ${e.message}")
+            return emptyList()
+        }
     }
 
     private fun getAggregateData(call: MethodCall, result: Result) {
@@ -941,6 +1009,7 @@ class HealthPlugin(private var channel: MethodChannel? = null) :
         val startTime = Instant.ofEpochMilli(call.argument<Long>("startTime")!!)
         val endTime = Instant.ofEpochMilli(call.argument<Long>("endTime")!!)
         val healthConnectData = mutableListOf<Map<String, Any?>>()
+        
         scope.launch {
             try {
                 mapToAggregateMetric[dataType]?.let { metricClassType ->
@@ -999,11 +1068,9 @@ class HealthPlugin(private var channel: MethodChannel? = null) :
                 }
                 Handler(context!!.mainLooper).run { result.success(healthConnectData) }
             } catch (e: Exception) {
-                Log.i(
-                    "FLUTTER_HEALTH::ERROR",
-                    "Unable to return $dataType due to the following exception:"
-                )
-                Log.e("FLUTTER_HEALTH::ERROR", Log.getStackTraceString(e))
+                Log.w("FLUTTER_HEALTH::ERROR", "HealthConnect quota exceeded while fetching aggregate data for $dataType")
+                Log.w("FLUTTER_HEALTH::ERROR", "Time range: $startTime to $endTime")
+                Log.w("FLUTTER_HEALTH::ERROR", "Error details: ${e.message}")
                 result.success(null)
             }
         }
@@ -1011,466 +1078,230 @@ class HealthPlugin(private var channel: MethodChannel? = null) :
 
     // TODO: Find alternative to SOURCE_ID or make it nullable?
     private fun convertRecord(record: Any, dataType: String): List<Map<String, Any?>> {
-        val metadata = (record as Record).metadata
-        when (record) {
-            is WeightRecord ->
-                return listOf(
+        try {
+            val metadata = (record as Record).metadata
+            return when (record) {
+                is WeightRecord -> listOf(
                     mapOf<String, Any>(
-                        "uuid" to
-                                metadata.id,
-                        "value" to
-                                record.weight
-                                    .inKilograms,
-                        "date_from" to
-                                record.time
-                                    .toEpochMilli(),
-                        "date_to" to
-                                record.time
-                                    .toEpochMilli(),
+                        "uuid" to metadata.id,
+                        "value" to record.weight.inKilograms,
+                        "date_from" to record.time.toEpochMilli(),
+                        "date_to" to record.time.toEpochMilli(),
                         "source_id" to "",
-                        "source_name" to
-                                metadata.dataOrigin
-                                    .packageName,
-                        "recording_method" to
-                                        metadata.recordingMethod
-                    ),
+                        "source_name" to metadata.dataOrigin.packageName,
+                        "recording_method" to metadata.recordingMethod
+                    )
                 )
-
-            is HeightRecord ->
-                return listOf(
+                is HeightRecord -> listOf(
                     mapOf<String, Any>(
-                        "uuid" to
-                                metadata.id,
-                        "value" to
-                                record.height
-                                    .inMeters,
-                        "date_from" to
-                                record.time
-                                    .toEpochMilli(),
-                        "date_to" to
-                                record.time
-                                    .toEpochMilli(),
+                        "uuid" to metadata.id,
+                        "value" to record.height.inMeters,
+                        "date_from" to record.time.toEpochMilli(),
+                        "date_to" to record.time.toEpochMilli(),
                         "source_id" to "",
-                        "source_name" to
-                                metadata.dataOrigin
-                                    .packageName,
-                        "recording_method" to
-                                        metadata.recordingMethod
-                    ),
+                        "source_name" to metadata.dataOrigin.packageName,
+                        "recording_method" to metadata.recordingMethod
+                    )
                 )
-
-            is BodyFatRecord ->
-                return listOf(
+                is BodyFatRecord -> listOf(
                     mapOf<String, Any>(
-                        "uuid" to
-                                metadata.id,
-                        "value" to
-                                record.percentage
-                                    .value,
-                        "date_from" to
-                                record.time
-                                    .toEpochMilli(),
-                        "date_to" to
-                                record.time
-                                    .toEpochMilli(),
+                        "uuid" to metadata.id,
+                        "value" to record.percentage.value,
+                        "date_from" to record.time.toEpochMilli(),
+                        "date_to" to record.time.toEpochMilli(),
                         "source_id" to "",
-                        "source_name" to
-                                metadata.dataOrigin
-                                    .packageName,
-                        "recording_method" to
-                                        metadata.recordingMethod
-                    ),
+                        "source_name" to metadata.dataOrigin.packageName,
+                        "recording_method" to metadata.recordingMethod
+                    )
                 )
-
-            is StepsRecord ->
-                return listOf(
+                is StepsRecord -> listOf(
                     mapOf<String, Any>(
-                        "uuid" to
-                                metadata.id,
+                        "uuid" to metadata.id,
                         "value" to record.count,
-                        "date_from" to
-                                record.startTime
-                                    .toEpochMilli(),
-                        "date_to" to
-                                record.endTime
-                                    .toEpochMilli(),
+                        "date_from" to record.startTime.toEpochMilli(),
+                        "date_to" to record.endTime.toEpochMilli(),
                         "source_id" to "",
-                        "source_name" to
-                                metadata.dataOrigin
-                                    .packageName,
-                        "recording_method" to
-                                        metadata.recordingMethod
-                    ),
+                        "source_name" to metadata.dataOrigin.packageName,
+                        "recording_method" to metadata.recordingMethod
+                    )
                 )
-
-            is ActiveCaloriesBurnedRecord ->
-                return listOf(
+                is ActiveCaloriesBurnedRecord -> listOf(
                     mapOf<String, Any>(
-                        "uuid" to
-                                metadata.id,
-                        "value" to
-                                record.energy
-                                    .inKilocalories,
-                        "date_from" to
-                                record.startTime
-                                    .toEpochMilli(),
-                        "date_to" to
-                                record.endTime
-                                    .toEpochMilli(),
+                        "uuid" to metadata.id,
+                        "value" to record.energy.inKilocalories,
+                        "date_from" to record.startTime.toEpochMilli(),
+                        "date_to" to record.endTime.toEpochMilli(),
                         "source_id" to "",
-                        "source_name" to
-                                metadata.dataOrigin
-                                    .packageName,
-                        "recording_method" to
-                                        metadata.recordingMethod
-                    ),
+                        "source_name" to metadata.dataOrigin.packageName,
+                        "recording_method" to metadata.recordingMethod
+                    )
                 )
-
-            is HeartRateRecord ->
-                return record.samples.map {
+                is HeartRateRecord -> record.samples.map {
                     mapOf<String, Any>(
-                        "uuid" to
-                                metadata.id,
+                        "uuid" to metadata.id,
                         "value" to it.beatsPerMinute,
-                        "date_from" to
-                                it.time.toEpochMilli(),
+                        "date_from" to it.time.toEpochMilli(),
                         "date_to" to it.time.toEpochMilli(),
                         "source_id" to "",
-                        "source_name" to
-                                metadata.dataOrigin
-                                    .packageName,
-                        "recording_method" to
-                                        metadata.recordingMethod
+                        "source_name" to metadata.dataOrigin.packageName,
+                        "recording_method" to metadata.recordingMethod
                     )
                 }
-
-            is HeartRateVariabilityRmssdRecord ->
-                return listOf(
+                is HeartRateVariabilityRmssdRecord -> listOf(
                     mapOf<String, Any>(
-                        "uuid" to
-                                metadata.id,
-                        "value" to
-                                record.heartRateVariabilityMillis,
-                        "date_from" to
-                                record.time
-                                    .toEpochMilli(),
-                        "date_to" to
-                                record.time
-                                    .toEpochMilli(),
+                        "uuid" to metadata.id,
+                        "value" to record.heartRateVariabilityMillis,
+                        "date_from" to record.time.toEpochMilli(),
+                        "date_to" to record.time.toEpochMilli(),
                         "source_id" to "",
-                        "source_name" to
-                                metadata.dataOrigin
-                                    .packageName,
-                        "recording_method" to
-                                        metadata.recordingMethod
-                    ),
-                )
-
-            is BodyTemperatureRecord ->
-                return listOf(
-                    mapOf<String, Any>(
-                        "uuid" to
-                                metadata.id,
-                        "value" to
-                                record.temperature
-                                    .inCelsius,
-                        "date_from" to
-                                record.time
-                                    .toEpochMilli(),
-                        "date_to" to
-                                record.time
-                                    .toEpochMilli(),
-                        "source_id" to "",
-                        "source_name" to
-                                metadata.dataOrigin
-                                    .packageName,
-                        "recording_method" to
-                                        metadata.recordingMethod
-                    ),
-                )
-
-            is BodyWaterMassRecord ->
-                return listOf(
-                    mapOf<String, Any>(
-                        "uuid" to
-                                metadata.id,
-                        "value" to
-                                record.mass
-                                    .inKilograms,
-                        "date_from" to
-                                record.time
-                                    .toEpochMilli(),
-                        "date_to" to
-                                record.time
-                                    .toEpochMilli(),
-                        "source_id" to "",
-                        "source_name" to
-                                metadata.dataOrigin
-                                    .packageName,
-                        "recording_method" to
-                                        metadata.recordingMethod
-                    ),
-                )
-
-            is BloodPressureRecord ->
-                return listOf(
-                    mapOf<String, Any>(
-                        "uuid" to
-                                metadata.id,
-                        "value" to
-                                if (dataType ==
-                                    BLOOD_PRESSURE_DIASTOLIC
-                                )
-                                    record.diastolic
-                                        .inMillimetersOfMercury
-                                else
-                                    record.systolic
-                                        .inMillimetersOfMercury,
-                        "date_from" to
-                                record.time
-                                    .toEpochMilli(),
-                        "date_to" to
-                                record.time
-                                    .toEpochMilli(),
-                        "source_id" to "",
-                        "source_name" to
-                                metadata.dataOrigin
-                                    .packageName,
-                        "recording_method" to
-                                        metadata.recordingMethod
-                    ),
-                )
-
-            is OxygenSaturationRecord ->
-                return listOf(
-                    mapOf<String, Any>(
-                        "uuid" to
-                                metadata.id,
-                        "value" to
-                                record.percentage
-                                    .value,
-                        "date_from" to
-                                record.time
-                                    .toEpochMilli(),
-                        "date_to" to
-                                record.time
-                                    .toEpochMilli(),
-                        "source_id" to "",
-                        "source_name" to
-                                metadata.dataOrigin
-                                    .packageName,
-                        "recording_method" to
-                                        metadata.recordingMethod
-                    ),
-                )
-
-            is BloodGlucoseRecord ->
-                return listOf(
-                    mapOf<String, Any>(
-                        "uuid" to
-                                metadata.id,
-                        "value" to
-                                record.level
-                                    .inMilligramsPerDeciliter,
-                        "date_from" to
-                                record.time
-                                    .toEpochMilli(),
-                        "date_to" to
-                                record.time
-                                    .toEpochMilli(),
-                        "source_id" to "",
-                        "source_name" to
-                                metadata.dataOrigin
-                                    .packageName,
-                        "recording_method" to
-                                        metadata.recordingMethod
-                    ),
-                )
-
-            is DistanceRecord ->
-                return listOf(
-                    mapOf<String, Any>(
-                        "uuid" to
-                                metadata.id,
-                        "value" to
-                                record.distance
-                                    .inMeters,
-                        "date_from" to
-                                record.startTime
-                                    .toEpochMilli(),
-                        "date_to" to
-                                record.endTime
-                                    .toEpochMilli(),
-                        "source_id" to "",
-                        "source_name" to
-                                metadata.dataOrigin
-                                    .packageName,
-                        "recording_method" to
-                                        metadata.recordingMethod
-                    ),
-                )
-
-            is HydrationRecord ->
-                return listOf(
-                    mapOf<String, Any>(
-                        "uuid" to
-                                metadata.id,
-                        "value" to
-                                record.volume
-                                    .inLiters,
-                        "date_from" to
-                                record.startTime
-                                    .toEpochMilli(),
-                        "date_to" to
-                                record.endTime
-                                    .toEpochMilli(),
-                        "source_id" to "",
-                        "source_name" to
-                                metadata.dataOrigin
-                                    .packageName,
-                        "recording_method" to
-                                        metadata.recordingMethod
-                    ),
-                )
-
-            is TotalCaloriesBurnedRecord ->
-                return listOf(
-                    mapOf<String, Any>(
-                        "uuid" to
-                                metadata.id,
-                        "value" to
-                                record.energy
-                                    .inKilocalories,
-                        "date_from" to
-                                record.startTime
-                                    .toEpochMilli(),
-                        "date_to" to
-                                record.endTime
-                                    .toEpochMilli(),
-                        "source_id" to "",
-                        "source_name" to
-                                metadata.dataOrigin
-                                    .packageName,
-                        "recording_method" to
-                                        metadata.recordingMethod
-                    ),
-                )
-
-            is BasalMetabolicRateRecord ->
-                return listOf(
-                    mapOf<String, Any>(
-                        "uuid" to
-                                metadata.id,
-                        "value" to
-                                record.basalMetabolicRate
-                                    .inKilocaloriesPerDay,
-                        "date_from" to
-                                record.time
-                                    .toEpochMilli(),
-                        "date_to" to
-                                record.time
-                                    .toEpochMilli(),
-                        "source_id" to "",
-                        "source_name" to
-                                metadata.dataOrigin
-                                    .packageName,
-                        "recording_method" to
-                                        metadata.recordingMethod
-                    ),
-                )
-
-            is SleepSessionRecord ->
-                return listOf(
-                    mapOf<String, Any>(
-                        "uuid" to
-                                metadata.id,
-                        "date_from" to
-                                record.startTime
-                                    .toEpochMilli(),
-                        "date_to" to
-                                record.endTime
-                                    .toEpochMilli(),
-                        "value" to
-                                ChronoUnit.MINUTES
-                                    .between(
-                                        record.startTime,
-                                        record.endTime
-                                    ),
-                        "source_id" to "",
-                        "source_name" to
-                                metadata.dataOrigin
-                                    .packageName,
-                        "recording_method" to
-                                        metadata.recordingMethod
-                    ),
-                )
-
-            is RestingHeartRateRecord ->
-                return listOf(
-                    mapOf<String, Any>(
-                        "uuid" to
-                                metadata.id,
-                        "value" to
-                                record.beatsPerMinute,
-                        "date_from" to
-                                record.time
-                                    .toEpochMilli(),
-                        "date_to" to
-                                record.time
-                                    .toEpochMilli(),
-                        "source_id" to "",
-                        "source_name" to
-                                metadata.dataOrigin
-                                    .packageName,
-                        "recording_method" to
-                                        metadata.recordingMethod
+                        "source_name" to metadata.dataOrigin.packageName,
+                        "recording_method" to metadata.recordingMethod
                     )
                 )
-
-            is FloorsClimbedRecord ->
-                return listOf(
+                is BodyTemperatureRecord -> listOf(
                     mapOf<String, Any>(
-                        "uuid" to
-                                metadata.id,
+                        "uuid" to metadata.id,
+                        "value" to record.temperature.inCelsius,
+                        "date_from" to record.time.toEpochMilli(),
+                        "date_to" to record.time.toEpochMilli(),
+                        "source_id" to "",
+                        "source_name" to metadata.dataOrigin.packageName,
+                        "recording_method" to metadata.recordingMethod
+                    )
+                )
+                is BodyWaterMassRecord -> listOf(
+                    mapOf<String, Any>(
+                        "uuid" to metadata.id,
+                        "value" to record.mass.inKilograms,
+                        "date_from" to record.time.toEpochMilli(),
+                        "date_to" to record.time.toEpochMilli(),
+                        "source_id" to "",
+                        "source_name" to metadata.dataOrigin.packageName,
+                        "recording_method" to metadata.recordingMethod
+                    )
+                )
+                is BloodPressureRecord -> listOf(
+                    mapOf<String, Any>(
+                        "uuid" to metadata.id,
+                        "value" to if (dataType == BLOOD_PRESSURE_DIASTOLIC) record.diastolic.inMillimetersOfMercury else record.systolic.inMillimetersOfMercury,
+                        "date_from" to record.time.toEpochMilli(),
+                        "date_to" to record.time.toEpochMilli(),
+                        "source_id" to "",
+                        "source_name" to metadata.dataOrigin.packageName,
+                        "recording_method" to metadata.recordingMethod
+                    )
+                )
+                is OxygenSaturationRecord -> listOf(
+                    mapOf<String, Any>(
+                        "uuid" to metadata.id,
+                        "value" to record.percentage.value,
+                        "date_from" to record.time.toEpochMilli(),
+                        "date_to" to record.time.toEpochMilli(),
+                        "source_id" to "",
+                        "source_name" to metadata.dataOrigin.packageName,
+                        "recording_method" to metadata.recordingMethod
+                    )
+                )
+                is BloodGlucoseRecord -> listOf(
+                    mapOf<String, Any>(
+                        "uuid" to metadata.id,
+                        "value" to record.level.inMilligramsPerDeciliter,
+                        "date_from" to record.time.toEpochMilli(),
+                        "date_to" to record.time.toEpochMilli(),
+                        "source_id" to "",
+                        "source_name" to metadata.dataOrigin.packageName,
+                        "recording_method" to metadata.recordingMethod
+                    )
+                )
+                is DistanceRecord -> listOf(
+                    mapOf<String, Any>(
+                        "uuid" to metadata.id,
+                        "value" to record.distance.inMeters,
+                        "date_from" to record.startTime.toEpochMilli(),
+                        "date_to" to record.endTime.toEpochMilli(),
+                        "source_id" to "",
+                        "source_name" to metadata.dataOrigin.packageName,
+                        "recording_method" to metadata.recordingMethod
+                    )
+                )
+                is HydrationRecord -> listOf(
+                    mapOf<String, Any>(
+                        "uuid" to metadata.id,
+                        "value" to record.volume.inLiters,
+                        "date_from" to record.startTime.toEpochMilli(),
+                        "date_to" to record.endTime.toEpochMilli(),
+                        "source_id" to "",
+                        "source_name" to metadata.dataOrigin.packageName,
+                        "recording_method" to metadata.recordingMethod
+                    )
+                )
+                is TotalCaloriesBurnedRecord -> listOf(
+                    mapOf<String, Any>(
+                        "uuid" to metadata.id,
+                        "value" to record.energy.inKilocalories,
+                        "date_from" to record.startTime.toEpochMilli(),
+                        "date_to" to record.endTime.toEpochMilli(),
+                        "source_id" to "",
+                        "source_name" to metadata.dataOrigin.packageName,
+                        "recording_method" to metadata.recordingMethod
+                    )
+                )
+                is BasalMetabolicRateRecord -> listOf(
+                    mapOf<String, Any>(
+                        "uuid" to metadata.id,
+                        "value" to record.basalMetabolicRate.inKilocaloriesPerDay,
+                        "date_from" to record.time.toEpochMilli(),
+                        "date_to" to record.time.toEpochMilli(),
+                        "source_id" to "",
+                        "source_name" to metadata.dataOrigin.packageName,
+                        "recording_method" to metadata.recordingMethod
+                    )
+                )
+                is SleepSessionRecord -> listOf(
+                    mapOf<String, Any>(
+                        "uuid" to metadata.id,
+                        "date_from" to record.startTime.toEpochMilli(),
+                        "date_to" to record.endTime.toEpochMilli(),
+                        "value" to ChronoUnit.MINUTES.between(record.startTime, record.endTime),
+                        "source_id" to "",
+                        "source_name" to metadata.dataOrigin.packageName,
+                        "recording_method" to metadata.recordingMethod
+                    )
+                )
+                is RestingHeartRateRecord -> listOf(
+                    mapOf<String, Any>(
+                        "uuid" to metadata.id,
+                        "value" to record.beatsPerMinute,
+                        "date_from" to record.time.toEpochMilli(),
+                        "date_to" to record.time.toEpochMilli(),
+                        "source_id" to "",
+                        "source_name" to metadata.dataOrigin.packageName,
+                        "recording_method" to metadata.recordingMethod
+                    )
+                )
+                is FloorsClimbedRecord -> listOf(
+                    mapOf<String, Any>(
+                        "uuid" to metadata.id,
                         "value" to record.floors,
-                        "date_from" to
-                                record.startTime
-                                    .toEpochMilli(),
-                        "date_to" to
-                                record.endTime
-                                    .toEpochMilli(),
+                        "date_from" to record.startTime.toEpochMilli(),
+                        "date_to" to record.endTime.toEpochMilli(),
                         "source_id" to "",
-                        "source_name" to
-                                metadata.dataOrigin
-                                    .packageName,
-                        "recording_method" to
-                                        metadata.recordingMethod
+                        "source_name" to metadata.dataOrigin.packageName,
+                        "recording_method" to metadata.recordingMethod
                     )
                 )
-
-            is RespiratoryRateRecord ->
-                return listOf(
+                is RespiratoryRateRecord -> listOf(
                     mapOf<String, Any>(
-                        "uuid" to
-                                metadata.id,
+                        "uuid" to metadata.id,
                         "value" to record.rate,
-                        "date_from" to
-                                record.time
-                                    .toEpochMilli(),
-                        "date_to" to
-                                record.time
-                                    .toEpochMilli(),
+                        "date_from" to record.time.toEpochMilli(),
+                        "date_to" to record.time.toEpochMilli(),
                         "source_id" to "",
-                        "source_name" to
-                                metadata.dataOrigin
-                                    .packageName,
-                        "recording_method" to
-                                        metadata.recordingMethod
+                        "source_name" to metadata.dataOrigin.packageName,
+                        "recording_method" to metadata.recordingMethod
                     )
                 )
-
-            is NutritionRecord ->
-                return listOf(
+                is NutritionRecord -> listOf(
                     mapOf<String, Any?>(
                         "uuid" to metadata.id,
                         "calories" to record.energy?.inKilocalories,
@@ -1516,710 +1347,699 @@ class HealthPlugin(private var channel: MethodChannel? = null) :
                         "water" to null,
                         "zinc" to record.zinc?.inGrams,
                         "name" to record.name!!,
-                        "meal_type" to
-                                (mapTypeToMealType[
-                                    record.mealType]
-                                    ?: MEAL_TYPE_UNKNOWN),
-                        "date_from" to
-                                record.startTime
-                                    .toEpochMilli(),
-                        "date_to" to
-                                record.endTime
-                                    .toEpochMilli(),
+                        "meal_type" to (mapTypeToMealType[record.mealType] ?: MEAL_TYPE_UNKNOWN),
+                        "date_from" to record.startTime.toEpochMilli(),
+                        "date_to" to record.endTime.toEpochMilli(),
                         "source_id" to "",
-                        "source_name" to
-                                metadata.dataOrigin
-                                    .packageName,
-                        "recording_method" to
-                                        metadata.recordingMethod
+                        "source_name" to metadata.dataOrigin.packageName,
+                        "recording_method" to metadata.recordingMethod
                     )
                 )
-
-            is MenstruationFlowRecord ->
-                return listOf(
+                is MenstruationFlowRecord -> listOf(
                     mapOf<String, Any>(
                         "uuid" to metadata.id,
                         "value" to record.flow,
                         "date_from" to record.time.toEpochMilli(),
                         "date_to" to record.time.toEpochMilli(),
                         "source_id" to "",
-                        "source_name" to
-                                metadata.dataOrigin
-                                    .packageName,
-                        "recording_method" to
-                                        metadata.recordingMethod
+                        "source_name" to metadata.dataOrigin.packageName,
+                        "recording_method" to metadata.recordingMethod
                     )
                 )
-            // is ExerciseSessionRecord -> return listOf(mapOf<String, Any>("value" to ,
-            //                                             "date_from" to ,
-            //                                             "date_to" to ,
-            //                                             "source_id" to "",
-            //                                             "source_name" to
-            // metadata.dataOrigin.packageName))
-            else ->
-                throw IllegalArgumentException(
-                    "Health data type not supported"
-                ) // TODO: Exception or error?
+                else -> {
+                    Log.w("FLUTTER_HEALTH::ERROR", "Unsupported record type: ${record.javaClass.simpleName}")
+                    emptyList()
+                }
+            }
+        } catch (e: Exception) {
+            Log.w("FLUTTER_HEALTH::ERROR", "Error converting record")
+            Log.w("FLUTTER_HEALTH::ERROR", "Record type: ${record.javaClass.simpleName}")
+            Log.w("FLUTTER_HEALTH::ERROR", "Error details: ${e.message}")
+            return emptyList()
         }
     }
 
     // TODO rewrite sleep to fit new update better --> compare with Apple and see if we should
     // not adopt a single type with attached stages approach
     private fun writeData(call: MethodCall, result: Result) {
-        val type = call.argument<String>("dataTypeKey")!!
-        val startTime = call.argument<Long>("startTime")!!
-        val endTime = call.argument<Long>("endTime")!!
-        val value = call.argument<Double>("value")!!
-        val recordingMethod = call.argument<Int>("recordingMethod")!!
+        scope.launch {
+            try {
+                val type = call.argument<String>("dataTypeKey")!!
+                val startTime = call.argument<Long>("startTime")!!
+                val endTime = call.argument<Long>("endTime")!!
+                val value = call.argument<Double>("value")!!
+                val recordingMethod = call.argument<Int>("recordingMethod")!!
 
-        Log.i(
-            "FLUTTER_HEALTH",
-            "Writing data for $type between $startTime and $endTime, value: $value, recording method: $recordingMethod"
-        )
+                Log.i(
+                    "FLUTTER_HEALTH",
+                    "Writing data for $type between $startTime and $endTime, value: $value, recording method: $recordingMethod"
+                )
 
-        val record =
-            when (type) {
-                BODY_FAT_PERCENTAGE ->
-                    BodyFatRecord(
-                        time =
-                        Instant.ofEpochMilli(
-                            startTime
-                        ),
-                        percentage =
-                        Percentage(
-                            value
-                        ),
-                        zoneOffset = null,
-                        metadata = Metadata(
-                            recordingMethod = recordingMethod,
-                        ),
-                    )
+                val record =
+                    when (type) {
+                        BODY_FAT_PERCENTAGE ->
+                            BodyFatRecord(
+                                time =
+                                Instant.ofEpochMilli(
+                                    startTime
+                                ),
+                                percentage =
+                                Percentage(
+                                    value
+                                ),
+                                zoneOffset = null,
+                                metadata = Metadata(
+                                    recordingMethod = recordingMethod,
+                                ),
+                            )
 
-                HEIGHT ->
-                    HeightRecord(
-                        time =
-                        Instant.ofEpochMilli(
-                            startTime
-                        ),
-                        height =
-                        Length.meters(
-                            value
-                        ),
-                        zoneOffset = null,
-                        metadata = Metadata(
-                            recordingMethod = recordingMethod,
-                        ),
-                    )
+                        HEIGHT ->
+                            HeightRecord(
+                                time =
+                                Instant.ofEpochMilli(
+                                    startTime
+                                ),
+                                height =
+                                Length.meters(
+                                    value
+                                ),
+                                zoneOffset = null,
+                                metadata = Metadata(
+                                    recordingMethod = recordingMethod,
+                                ),
+                            )
 
-                WEIGHT ->
-                    WeightRecord(
-                        time =
-                        Instant.ofEpochMilli(
-                            startTime
-                        ),
-                        weight =
-                        Mass.kilograms(
-                            value
-                        ),
-                        zoneOffset = null,
-                        metadata = Metadata(
-                            recordingMethod = recordingMethod,
-                        ),
-                    )
+                        WEIGHT ->
+                            WeightRecord(
+                                time =
+                                Instant.ofEpochMilli(
+                                    startTime
+                                ),
+                                weight =
+                                Mass.kilograms(
+                                    value
+                                ),
+                                zoneOffset = null,
+                                metadata = Metadata(
+                                    recordingMethod = recordingMethod,
+                                ),
+                            )
 
-                STEPS ->
-                    StepsRecord(
-                        startTime =
-                        Instant.ofEpochMilli(
-                            startTime
-                        ),
-                        endTime =
-                        Instant.ofEpochMilli(
-                            endTime
-                        ),
-                        count = value.toLong(),
-                        startZoneOffset = null,
-                        endZoneOffset = null,
-                        metadata = Metadata(
-                            recordingMethod = recordingMethod,
-                        ),
-                    )
+                        STEPS ->
+                            StepsRecord(
+                                startTime =
+                                Instant.ofEpochMilli(
+                                    startTime
+                                ),
+                                endTime =
+                                Instant.ofEpochMilli(
+                                    endTime
+                                ),
+                                count = value.toLong(),
+                                startZoneOffset = null,
+                                endZoneOffset = null,
+                                metadata = Metadata(
+                                    recordingMethod = recordingMethod,
+                                ),
+                            )
 
-                ACTIVE_ENERGY_BURNED ->
-                    ActiveCaloriesBurnedRecord(
-                        startTime =
-                        Instant.ofEpochMilli(
-                            startTime
-                        ),
-                        endTime =
-                        Instant.ofEpochMilli(
-                            endTime
-                        ),
-                        energy =
-                        Energy.kilocalories(
-                            value
-                        ),
-                        startZoneOffset = null,
-                        endZoneOffset = null,
-                        metadata = Metadata(
-                            recordingMethod = recordingMethod,
-                        ),
-                    )
+                        ACTIVE_ENERGY_BURNED ->
+                            ActiveCaloriesBurnedRecord(
+                                startTime =
+                                Instant.ofEpochMilli(
+                                    startTime
+                                ),
+                                endTime =
+                                Instant.ofEpochMilli(
+                                    endTime
+                                ),
+                                energy =
+                                Energy.kilocalories(
+                                    value
+                                ),
+                                startZoneOffset = null,
+                                endZoneOffset = null,
+                                metadata = Metadata(
+                                    recordingMethod = recordingMethod,
+                                ),
+                            )
 
-                HEART_RATE ->
-                    HeartRateRecord(
-                        startTime =
-                        Instant.ofEpochMilli(
-                            startTime
-                        ),
-                        endTime =
-                        Instant.ofEpochMilli(
-                            endTime
-                        ),
-                        samples =
-                        listOf(
-                            HeartRateRecord.Sample(
+                        HEART_RATE ->
+                            HeartRateRecord(
+                                startTime =
+                                Instant.ofEpochMilli(
+                                    startTime
+                                ),
+                                endTime =
+                                Instant.ofEpochMilli(
+                                    endTime
+                                ),
+                                samples =
+                                listOf(
+                                    HeartRateRecord.Sample(
+                                        time =
+                                        Instant.ofEpochMilli(
+                                            startTime
+                                        ),
+                                        beatsPerMinute =
+                                        value.toLong(),
+                                    ),
+                                ),
+                                startZoneOffset = null,
+                                endZoneOffset = null,
+                                metadata = Metadata(
+                                    recordingMethod = recordingMethod,
+                                ),
+                            )
+
+                        BODY_TEMPERATURE ->
+                            BodyTemperatureRecord(
+                                time =
+                                Instant.ofEpochMilli(
+                                    startTime
+                                ),
+                                temperature =
+                                Temperature.celsius(
+                                    value
+                                ),
+                                zoneOffset = null,
+                                metadata = Metadata(
+                                    recordingMethod = recordingMethod,
+                                ),
+                            )
+
+                        BODY_WATER_MASS ->
+                            BodyWaterMassRecord(
+                                time =
+                                Instant.ofEpochMilli(
+                                    startTime
+                                ),
+                                mass =
+                                Mass.kilograms(
+                                    value
+                                ),
+                                zoneOffset = null,
+                                metadata = Metadata(
+                                    recordingMethod = recordingMethod,
+                                ),
+                            )
+
+                        BLOOD_OXYGEN ->
+                            OxygenSaturationRecord(
+                                time =
+                                Instant.ofEpochMilli(
+                                    startTime
+                                ),
+                                percentage =
+                                Percentage(
+                                    value
+                                ),
+                                zoneOffset = null,
+                                metadata = Metadata(
+                                    recordingMethod = recordingMethod,
+                                ),
+                            )
+
+                        BLOOD_GLUCOSE ->
+                            BloodGlucoseRecord(
+                                time =
+                                Instant.ofEpochMilli(
+                                    startTime
+                                ),
+                                level =
+                                BloodGlucose.milligramsPerDeciliter(
+                                    value
+                                ),
+                                zoneOffset = null,
+                                metadata = Metadata(
+                                    recordingMethod = recordingMethod,
+                                ),
+                            )
+
+                        HEART_RATE_VARIABILITY_RMSSD ->
+                            HeartRateVariabilityRmssdRecord(
+                                time =
+                                Instant.ofEpochMilli(
+                                    startTime
+                                ),
+                                heartRateVariabilityMillis =
+                                value,
+
+                                zoneOffset = null,
+                                metadata = Metadata(
+                                    recordingMethod = recordingMethod,
+                                ),
+                            )
+
+                        DISTANCE_DELTA ->
+                            DistanceRecord(
+                                startTime =
+                                Instant.ofEpochMilli(
+                                    startTime
+                                ),
+                                endTime =
+                                Instant.ofEpochMilli(
+                                    endTime
+                                ),
+                                distance =
+                                Length.meters(
+                                    value
+                                ),
+                                startZoneOffset = null,
+                                endZoneOffset = null,
+                                metadata = Metadata(
+                                    recordingMethod = recordingMethod,
+                                ),
+                            )
+
+                        WATER ->
+                            HydrationRecord(
+                                startTime =
+                                Instant.ofEpochMilli(
+                                    startTime
+                                ),
+                                endTime =
+                                Instant.ofEpochMilli(
+                                    endTime
+                                ),
+                                volume =
+                                Volume.liters(
+                                    value
+                                ),
+                                startZoneOffset = null,
+                                endZoneOffset = null,
+                                metadata = Metadata(
+                                    recordingMethod = recordingMethod,
+                                ),
+                            )
+
+                        SLEEP_ASLEEP ->
+                            SleepSessionRecord(
+                                startTime =
+                                Instant.ofEpochMilli(
+                                    startTime
+                                ),
+                                endTime =
+                                Instant.ofEpochMilli(
+                                    endTime
+                                ),
+                                startZoneOffset = null,
+                                endZoneOffset = null,
+                                stages =
+                                listOf(
+                                    SleepSessionRecord
+                                        .Stage(
+                                            Instant.ofEpochMilli(
+                                                startTime
+                                            ),
+                                            Instant.ofEpochMilli(
+                                                endTime
+                                            ),
+                                            SleepSessionRecord
+                                                .STAGE_TYPE_SLEEPING
+                                        )
+                                ),
+                                metadata = Metadata(
+                                    recordingMethod = recordingMethod,
+                                ),
+                            )
+
+                        SLEEP_LIGHT ->
+                            SleepSessionRecord(
+                                startTime =
+                                Instant.ofEpochMilli(
+                                    startTime
+                                ),
+                                endTime =
+                                Instant.ofEpochMilli(
+                                    endTime
+                                ),
+                                startZoneOffset = null,
+                                endZoneOffset = null,
+                                stages =
+                                listOf(
+                                    SleepSessionRecord
+                                        .Stage(
+                                            Instant.ofEpochMilli(
+                                                startTime
+                                            ),
+                                            Instant.ofEpochMilli(
+                                                endTime
+                                            ),
+                                            SleepSessionRecord
+                                                .STAGE_TYPE_LIGHT
+                                        )
+                                ),
+                                metadata = Metadata(
+                                    recordingMethod = recordingMethod,
+                                ),
+                            )
+
+                        SLEEP_DEEP ->
+                            SleepSessionRecord(
+                                startTime =
+                                Instant.ofEpochMilli(
+                                    startTime
+                                ),
+                                endTime =
+                                Instant.ofEpochMilli(
+                                    endTime
+                                ),
+                                startZoneOffset = null,
+                                endZoneOffset = null,
+                                stages =
+                                listOf(
+                                    SleepSessionRecord
+                                        .Stage(
+                                            Instant.ofEpochMilli(
+                                                startTime
+                                            ),
+                                            Instant.ofEpochMilli(
+                                                endTime
+                                            ),
+                                            SleepSessionRecord
+                                                .STAGE_TYPE_DEEP
+                                        )
+                                ),
+                                metadata = Metadata(
+                                    recordingMethod = recordingMethod,
+                                ),
+                            )
+
+                        SLEEP_REM ->
+                            SleepSessionRecord(
+                                startTime =
+                                Instant.ofEpochMilli(
+                                    startTime
+                                ),
+                                endTime =
+                                Instant.ofEpochMilli(
+                                    endTime
+                                ),
+                                startZoneOffset = null,
+                                endZoneOffset = null,
+                                stages =
+                                listOf(
+                                    SleepSessionRecord
+                                        .Stage(
+                                            Instant.ofEpochMilli(
+                                                startTime
+                                            ),
+                                            Instant.ofEpochMilli(
+                                                endTime
+                                            ),
+                                            SleepSessionRecord
+                                                .STAGE_TYPE_REM
+                                        )
+                                ),
+                                metadata = Metadata(
+                                    recordingMethod = recordingMethod,
+                                ),
+                            )
+
+                        SLEEP_OUT_OF_BED ->
+                            SleepSessionRecord(
+                                startTime =
+                                Instant.ofEpochMilli(
+                                    startTime
+                                ),
+                                endTime =
+                                Instant.ofEpochMilli(
+                                    endTime
+                                ),
+                                startZoneOffset = null,
+                                endZoneOffset = null,
+                                stages =
+                                listOf(
+                                    SleepSessionRecord
+                                        .Stage(
+                                            Instant.ofEpochMilli(
+                                                startTime
+                                            ),
+                                            Instant.ofEpochMilli(
+                                                endTime
+                                            ),
+                                            SleepSessionRecord
+                                                .STAGE_TYPE_OUT_OF_BED
+                                        )
+                                ),
+                                metadata = Metadata(
+                                    recordingMethod = recordingMethod,
+                                ),
+                            )
+
+                        SLEEP_AWAKE ->
+                            SleepSessionRecord(
+                                startTime =
+                                Instant.ofEpochMilli(
+                                    startTime
+                                ),
+                                endTime =
+                                Instant.ofEpochMilli(
+                                    endTime
+                                ),
+                                startZoneOffset = null,
+                                endZoneOffset = null,
+                                stages =
+                                listOf(
+                                    SleepSessionRecord
+                                        .Stage(
+                                            Instant.ofEpochMilli(
+                                                startTime
+                                            ),
+                                            Instant.ofEpochMilli(
+                                                endTime
+                                            ),
+                                            SleepSessionRecord
+                                                .STAGE_TYPE_AWAKE
+                                        )
+                                ),
+                                metadata = Metadata(
+                                    recordingMethod = recordingMethod,
+                                ),
+                            )
+
+                        SLEEP_AWAKE_IN_BED ->
+                            SleepSessionRecord(
+                                startTime =
+                                Instant.ofEpochMilli(
+                                    startTime
+                                ),
+                                endTime =
+                                Instant.ofEpochMilli(
+                                    endTime
+                                ),
+                                startZoneOffset = null,
+                                endZoneOffset = null,
+                                stages =
+                                listOf(
+                                    SleepSessionRecord
+                                        .Stage(
+                                            Instant.ofEpochMilli(
+                                                startTime
+                                            ),
+                                            Instant.ofEpochMilli(
+                                                endTime
+                                            ),
+                                            SleepSessionRecord
+                                                .STAGE_TYPE_AWAKE_IN_BED
+                                        )
+                                ),
+                            )
+
+                        SLEEP_UNKNOWN ->
+                            SleepSessionRecord(
+                                startTime =
+                                Instant.ofEpochMilli(
+                                    startTime
+                                ),
+                                endTime =
+                                Instant.ofEpochMilli(
+                                    endTime
+                                ),
+                                startZoneOffset = null,
+                                endZoneOffset = null,
+                                stages =
+                                listOf(
+                                    SleepSessionRecord
+                                        .Stage(
+                                            Instant.ofEpochMilli(
+                                                startTime
+                                            ),
+                                            Instant.ofEpochMilli(
+                                                endTime
+                                            ),
+                                            SleepSessionRecord
+                                                .STAGE_TYPE_UNKNOWN
+                                        )
+                                ),
+                            )
+                        SLEEP_SESSION ->
+                            SleepSessionRecord(
+                                startTime =
+                                Instant.ofEpochMilli(
+                                    startTime
+                                ),
+                                endTime =
+                                Instant.ofEpochMilli(
+                                    endTime
+                                ),
+                                startZoneOffset = null,
+                                endZoneOffset = null,
+                                metadata = Metadata(
+                                    recordingMethod = recordingMethod,
+                                ),
+                            )
+
+                        RESTING_HEART_RATE ->
+                            RestingHeartRateRecord(
                                 time =
                                 Instant.ofEpochMilli(
                                     startTime
                                 ),
                                 beatsPerMinute =
                                 value.toLong(),
+                                zoneOffset = null,
+                                metadata = Metadata(
+                                    recordingMethod = recordingMethod,
+                                ),
+                            )
+
+                        BASAL_ENERGY_BURNED ->
+                            BasalMetabolicRateRecord(
+                                time =
+                                Instant.ofEpochMilli(
+                                    startTime
+                                ),
+                                basalMetabolicRate =
+                                Power.kilocaloriesPerDay(
+                                    value
+                                ),
+                                zoneOffset = null,
+                                metadata = Metadata(
+                                    recordingMethod = recordingMethod,
+                                ),
+                            )
+
+                        FLIGHTS_CLIMBED ->
+                            FloorsClimbedRecord(
+                                startTime =
+                                Instant.ofEpochMilli(
+                                    startTime
+                                ),
+                                endTime =
+                                Instant.ofEpochMilli(
+                                    endTime
+                                ),
+                                floors = value,
+                                startZoneOffset = null,
+                                endZoneOffset = null,
+                                metadata = Metadata(
+                                    recordingMethod = recordingMethod,
+                                ),
+                            )
+
+                        RESPIRATORY_RATE ->
+                            RespiratoryRateRecord(
+                                time =
+                                Instant.ofEpochMilli(
+                                    startTime
+                                ),
+                                rate = value,
+                                zoneOffset = null,
+                                metadata = Metadata(
+                                    recordingMethod = recordingMethod,
+                                ),
+                            )
+                        // AGGREGATE_STEP_COUNT -> StepsRecord()
+                        TOTAL_CALORIES_BURNED ->
+                            TotalCaloriesBurnedRecord(
+                                startTime =
+                                Instant.ofEpochMilli(
+                                    startTime
+                                ),
+                                endTime =
+                                Instant.ofEpochMilli(
+                                    endTime
+                                ),
+                                energy =
+                                Energy.kilocalories(
+                                    value
+                                ),
+                                startZoneOffset = null,
+                                endZoneOffset = null,
+                                metadata = Metadata(
+                                    recordingMethod = recordingMethod,
+                                ),
+                            )
+
+                        MENSTRUATION_FLOW -> MenstruationFlowRecord(
+                            time = Instant.ofEpochMilli(startTime),
+                            flow = value.toInt(),
+                            zoneOffset = null,
+                            metadata = Metadata(
+                                recordingMethod = recordingMethod,
                             ),
-                        ),
-                        startZoneOffset = null,
-                        endZoneOffset = null,
-                        metadata = Metadata(
-                            recordingMethod = recordingMethod,
-                        ),
-                    )
+                        )
 
-                BODY_TEMPERATURE ->
-                    BodyTemperatureRecord(
-                        time =
-                        Instant.ofEpochMilli(
-                            startTime
-                        ),
-                        temperature =
-                        Temperature.celsius(
-                            value
-                        ),
-                        zoneOffset = null,
-                        metadata = Metadata(
-                            recordingMethod = recordingMethod,
-                        ),
-                    )
+                        BLOOD_PRESSURE_SYSTOLIC ->
+                            throw IllegalArgumentException(
+                                "You must use the [writeBloodPressure] API "
+                            )
 
-                BODY_WATER_MASS ->
-                    BodyWaterMassRecord(
-                        time =
-                        Instant.ofEpochMilli(
-                            startTime
-                        ),
-                        mass =
-                        Mass.kilograms(
-                            value
-                        ),
-                        zoneOffset = null,
-                        metadata = Metadata(
-                            recordingMethod = recordingMethod,
-                        ),
-                    )
+                        BLOOD_PRESSURE_DIASTOLIC ->
+                            throw IllegalArgumentException(
+                                "You must use the [writeBloodPressure] API "
+                            )
 
-                BLOOD_OXYGEN ->
-                    OxygenSaturationRecord(
-                        time =
-                        Instant.ofEpochMilli(
-                            startTime
-                        ),
-                        percentage =
-                        Percentage(
-                            value
-                        ),
-                        zoneOffset = null,
-                        metadata = Metadata(
-                            recordingMethod = recordingMethod,
-                        ),
-                    )
+                        WORKOUT ->
+                            throw IllegalArgumentException(
+                                "You must use the [writeWorkoutData] API "
+                            )
 
-                BLOOD_GLUCOSE ->
-                    BloodGlucoseRecord(
-                        time =
-                        Instant.ofEpochMilli(
-                            startTime
-                        ),
-                        level =
-                        BloodGlucose.milligramsPerDeciliter(
-                            value
-                        ),
-                        zoneOffset = null,
-                        metadata = Metadata(
-                            recordingMethod = recordingMethod,
-                        ),
-                    )
+                        NUTRITION ->
+                            throw IllegalArgumentException(
+                                "You must use the [writeMeal] API "
+                            )
 
-                HEART_RATE_VARIABILITY_RMSSD ->
-                    HeartRateVariabilityRmssdRecord(
-                        time =
-                        Instant.ofEpochMilli(
-                            startTime
-                        ),
-                        heartRateVariabilityMillis =
-                        value,
-
-                        zoneOffset = null,
-                        metadata = Metadata(
-                            recordingMethod = recordingMethod,
-                        ),
-                    )
-
-                DISTANCE_DELTA ->
-                    DistanceRecord(
-                        startTime =
-                        Instant.ofEpochMilli(
-                            startTime
-                        ),
-                        endTime =
-                        Instant.ofEpochMilli(
-                            endTime
-                        ),
-                        distance =
-                        Length.meters(
-                            value
-                        ),
-                        startZoneOffset = null,
-                        endZoneOffset = null,
-                        metadata = Metadata(
-                            recordingMethod = recordingMethod,
-                        ),
-                    )
-
-                WATER ->
-                    HydrationRecord(
-                        startTime =
-                        Instant.ofEpochMilli(
-                            startTime
-                        ),
-                        endTime =
-                        Instant.ofEpochMilli(
-                            endTime
-                        ),
-                        volume =
-                        Volume.liters(
-                            value
-                        ),
-                        startZoneOffset = null,
-                        endZoneOffset = null,
-                        metadata = Metadata(
-                            recordingMethod = recordingMethod,
-                        ),
-                    )
-
-                SLEEP_ASLEEP ->
-                    SleepSessionRecord(
-                        startTime =
-                        Instant.ofEpochMilli(
-                            startTime
-                        ),
-                        endTime =
-                        Instant.ofEpochMilli(
-                            endTime
-                        ),
-                        startZoneOffset = null,
-                        endZoneOffset = null,
-                        stages =
-                        listOf(
-                            SleepSessionRecord
-                                .Stage(
-                                    Instant.ofEpochMilli(
-                                        startTime
-                                    ),
-                                    Instant.ofEpochMilli(
-                                        endTime
-                                    ),
-                                    SleepSessionRecord
-                                        .STAGE_TYPE_SLEEPING
-                                )
-                        ),
-                        metadata = Metadata(
-                            recordingMethod = recordingMethod,
-                        ),
-                    )
-
-                SLEEP_LIGHT ->
-                    SleepSessionRecord(
-                        startTime =
-                        Instant.ofEpochMilli(
-                            startTime
-                        ),
-                        endTime =
-                        Instant.ofEpochMilli(
-                            endTime
-                        ),
-                        startZoneOffset = null,
-                        endZoneOffset = null,
-                        stages =
-                        listOf(
-                            SleepSessionRecord
-                                .Stage(
-                                    Instant.ofEpochMilli(
-                                        startTime
-                                    ),
-                                    Instant.ofEpochMilli(
-                                        endTime
-                                    ),
-                                    SleepSessionRecord
-                                        .STAGE_TYPE_LIGHT
-                                )
-                        ),
-                        metadata = Metadata(
-                            recordingMethod = recordingMethod,
-                        ),
-                    )
-
-                SLEEP_DEEP ->
-                    SleepSessionRecord(
-                        startTime =
-                        Instant.ofEpochMilli(
-                            startTime
-                        ),
-                        endTime =
-                        Instant.ofEpochMilli(
-                            endTime
-                        ),
-                        startZoneOffset = null,
-                        endZoneOffset = null,
-                        stages =
-                        listOf(
-                            SleepSessionRecord
-                                .Stage(
-                                    Instant.ofEpochMilli(
-                                        startTime
-                                    ),
-                                    Instant.ofEpochMilli(
-                                        endTime
-                                    ),
-                                    SleepSessionRecord
-                                        .STAGE_TYPE_DEEP
-                                )
-                        ),
-                        metadata = Metadata(
-                            recordingMethod = recordingMethod,
-                        ),
-                    )
-
-                SLEEP_REM ->
-                    SleepSessionRecord(
-                        startTime =
-                        Instant.ofEpochMilli(
-                            startTime
-                        ),
-                        endTime =
-                        Instant.ofEpochMilli(
-                            endTime
-                        ),
-                        startZoneOffset = null,
-                        endZoneOffset = null,
-                        stages =
-                        listOf(
-                            SleepSessionRecord
-                                .Stage(
-                                    Instant.ofEpochMilli(
-                                        startTime
-                                    ),
-                                    Instant.ofEpochMilli(
-                                        endTime
-                                    ),
-                                    SleepSessionRecord
-                                        .STAGE_TYPE_REM
-                                )
-                        ),
-                        metadata = Metadata(
-                            recordingMethod = recordingMethod,
-                        ),
-                    )
-
-                SLEEP_OUT_OF_BED ->
-                    SleepSessionRecord(
-                        startTime =
-                        Instant.ofEpochMilli(
-                            startTime
-                        ),
-                        endTime =
-                        Instant.ofEpochMilli(
-                            endTime
-                        ),
-                        startZoneOffset = null,
-                        endZoneOffset = null,
-                        stages =
-                        listOf(
-                            SleepSessionRecord
-                                .Stage(
-                                    Instant.ofEpochMilli(
-                                        startTime
-                                    ),
-                                    Instant.ofEpochMilli(
-                                        endTime
-                                    ),
-                                    SleepSessionRecord
-                                        .STAGE_TYPE_OUT_OF_BED
-                                )
-                        ),
-                        metadata = Metadata(
-                            recordingMethod = recordingMethod,
-                        ),
-                    )
-
-                SLEEP_AWAKE ->
-                    SleepSessionRecord(
-                        startTime =
-                        Instant.ofEpochMilli(
-                            startTime
-                        ),
-                        endTime =
-                        Instant.ofEpochMilli(
-                            endTime
-                        ),
-                        startZoneOffset = null,
-                        endZoneOffset = null,
-                        stages =
-                        listOf(
-                            SleepSessionRecord
-                                .Stage(
-                                    Instant.ofEpochMilli(
-                                        startTime
-                                    ),
-                                    Instant.ofEpochMilli(
-                                        endTime
-                                    ),
-                                    SleepSessionRecord
-                                        .STAGE_TYPE_AWAKE
-                                )
-                        ),
-                        metadata = Metadata(
-                            recordingMethod = recordingMethod,
-                        ),
-                    )
-
-                SLEEP_AWAKE_IN_BED ->
-                    SleepSessionRecord(
-                        startTime =
-                        Instant.ofEpochMilli(
-                            startTime
-                        ),
-                        endTime =
-                        Instant.ofEpochMilli(
-                            endTime
-                        ),
-                        startZoneOffset = null,
-                        endZoneOffset = null,
-                        stages =
-                        listOf(
-                            SleepSessionRecord
-                                .Stage(
-                                    Instant.ofEpochMilli(
-                                        startTime
-                                    ),
-                                    Instant.ofEpochMilli(
-                                        endTime
-                                    ),
-                                    SleepSessionRecord
-                                        .STAGE_TYPE_AWAKE_IN_BED
-                                )
-                        ),
-                    )
-
-                SLEEP_UNKNOWN ->
-                    SleepSessionRecord(
-                        startTime =
-                        Instant.ofEpochMilli(
-                            startTime
-                        ),
-                        endTime =
-                        Instant.ofEpochMilli(
-                            endTime
-                        ),
-                        startZoneOffset = null,
-                        endZoneOffset = null,
-                        stages =
-                        listOf(
-                            SleepSessionRecord
-                                .Stage(
-                                    Instant.ofEpochMilli(
-                                        startTime
-                                    ),
-                                    Instant.ofEpochMilli(
-                                        endTime
-                                    ),
-                                    SleepSessionRecord
-                                        .STAGE_TYPE_UNKNOWN
-                                )
-                        ),
-                    )
-                SLEEP_SESSION ->
-                    SleepSessionRecord(
-                        startTime =
-                        Instant.ofEpochMilli(
-                            startTime
-                        ),
-                        endTime =
-                        Instant.ofEpochMilli(
-                            endTime
-                        ),
-                        startZoneOffset = null,
-                        endZoneOffset = null,
-                        metadata = Metadata(
-                            recordingMethod = recordingMethod,
-                        ),
-                    )
-
-                RESTING_HEART_RATE ->
-                    RestingHeartRateRecord(
-                        time =
-                        Instant.ofEpochMilli(
-                            startTime
-                        ),
-                        beatsPerMinute =
-                        value.toLong(),
-                        zoneOffset = null,
-                        metadata = Metadata(
-                            recordingMethod = recordingMethod,
-                        ),
-                    )
-
-                BASAL_ENERGY_BURNED ->
-                    BasalMetabolicRateRecord(
-                        time =
-                        Instant.ofEpochMilli(
-                            startTime
-                        ),
-                        basalMetabolicRate =
-                        Power.kilocaloriesPerDay(
-                            value
-                        ),
-                        zoneOffset = null,
-                        metadata = Metadata(
-                            recordingMethod = recordingMethod,
-                        ),
-                    )
-
-                FLIGHTS_CLIMBED ->
-                    FloorsClimbedRecord(
-                        startTime =
-                        Instant.ofEpochMilli(
-                            startTime
-                        ),
-                        endTime =
-                        Instant.ofEpochMilli(
-                            endTime
-                        ),
-                        floors = value,
-                        startZoneOffset = null,
-                        endZoneOffset = null,
-                        metadata = Metadata(
-                            recordingMethod = recordingMethod,
-                        ),
-                    )
-
-                RESPIRATORY_RATE ->
-                    RespiratoryRateRecord(
-                        time =
-                        Instant.ofEpochMilli(
-                            startTime
-                        ),
-                        rate = value,
-                        zoneOffset = null,
-                        metadata = Metadata(
-                            recordingMethod = recordingMethod,
-                        ),
-                    )
-                // AGGREGATE_STEP_COUNT -> StepsRecord()
-                TOTAL_CALORIES_BURNED ->
-                    TotalCaloriesBurnedRecord(
-                        startTime =
-                        Instant.ofEpochMilli(
-                            startTime
-                        ),
-                        endTime =
-                        Instant.ofEpochMilli(
-                            endTime
-                        ),
-                        energy =
-                        Energy.kilocalories(
-                            value
-                        ),
-                        startZoneOffset = null,
-                        endZoneOffset = null,
-                        metadata = Metadata(
-                            recordingMethod = recordingMethod,
-                        ),
-                    )
-
-                MENSTRUATION_FLOW -> MenstruationFlowRecord(
-                    time = Instant.ofEpochMilli(startTime),
-                    flow = value.toInt(),
-                    zoneOffset = null,
-                    metadata = Metadata(
-                        recordingMethod = recordingMethod,
-                    ),
-                )
-
-                BLOOD_PRESSURE_SYSTOLIC ->
-                    throw IllegalArgumentException(
-                        "You must use the [writeBloodPressure] API "
-                    )
-
-                BLOOD_PRESSURE_DIASTOLIC ->
-                    throw IllegalArgumentException(
-                        "You must use the [writeBloodPressure] API "
-                    )
-
-                WORKOUT ->
-                    throw IllegalArgumentException(
-                        "You must use the [writeWorkoutData] API "
-                    )
-
-                NUTRITION ->
-                    throw IllegalArgumentException(
-                        "You must use the [writeMeal] API "
-                    )
-
-                else ->
-                    throw IllegalArgumentException(
-                        "The type $type was not supported by the Health plugin or you must use another API "
-                    )
-            }
-        scope.launch {
-            try {
-                healthConnectClient.insertRecords(listOf(record))
-                result.success(true)
-            } catch (e: Exception) {
-                result.success(false)
+                        else ->
+                            throw IllegalArgumentException(
+                                "The type $type was not supported by the Health plugin or you must use another API "
+                            )
+                    }
+                    healthConnectClient.insertRecords(listOf(record))
+                    result.success(true)
+                } catch (e: Exception) {
+                    Log.w("FLUTTER_HEALTH::ERROR", "HealthConnect quota exceeded while writing data")
+                    Log.w("FLUTTER_HEALTH::ERROR", "Error details: ${e.message}")
+                    Log.w("FLUTTER_HEALTH::ERROR", "Stack trace: ${e.stackTrace}")
+                    result.success(false) // Return false to indicate failure
+                }
             }
         }
     }
 
     /** Save a Workout session with options for distance and calories expended */
     private fun writeWorkoutData(call: MethodCall, result: Result) {
-        val type = call.argument<String>("activityType")!!
-        val startTime = Instant.ofEpochMilli(call.argument<Long>("startTime")!!)
-        val endTime = Instant.ofEpochMilli(call.argument<Long>("endTime")!!)
-        val totalEnergyBurned = call.argument<Int>("totalEnergyBurned")
-        val totalDistance = call.argument<Int>("totalDistance")
-        val recordingMethod = call.argument<Int>("recordingMethod")!!
-        if (!workoutTypeMap.containsKey(type)) {
-            result.success(false)
-            Log.w(
-                "FLUTTER_HEALTH::ERROR",
-                "[Health Connect] Workout type not supported"
-            )
-            return
-        }
-        val workoutType = workoutTypeMap[type]!!
-        val title = call.argument<String>("title") ?: type
-
         scope.launch {
             try {
+                val type = call.argument<String>("activityType")!!
+                val startTime = Instant.ofEpochMilli(call.argument<Long>("startTime")!!)
+                val endTime = Instant.ofEpochMilli(call.argument<Long>("endTime")!!)
+                val totalEnergyBurned = call.argument<Int>("totalEnergyBurned")
+                val totalDistance = call.argument<Int>("totalDistance")
+                val recordingMethod = call.argument<Int>("recordingMethod")!!
+                if (!workoutTypeMap.containsKey(type)) {
+                    result.success(false)
+                    Log.w(
+                        "FLUTTER_HEALTH::ERROR",
+                        "[Health Connect] Workout type not supported"
+                    )
+                    return
+                }
+                val workoutType = workoutTypeMap[type]!!
+                val title = call.argument<String>("title") ?: type
+
                 val list = mutableListOf<Record>()
                 list.add(
                     ExerciseSessionRecord(
@@ -2278,12 +2098,9 @@ class HealthPlugin(private var channel: MethodChannel? = null) :
                     "[Health Connect] Workout was successfully added!"
                 )
             } catch (e: Exception) {
-                Log.w(
-                    "FLUTTER_HEALTH::ERROR",
-                    "[Health Connect] There was an error adding the workout",
-                )
-                Log.w("FLUTTER_HEALTH::ERROR", e.message ?: "unknown error")
-                Log.w("FLUTTER_HEALTH::ERROR", e.stackTrace.toString())
+                Log.w("FLUTTER_HEALTH::ERROR", "HealthConnect quota exceeded while writing workout data")
+                Log.w("FLUTTER_HEALTH::ERROR", "Error details: ${e.message}")
+                Log.w("FLUTTER_HEALTH::ERROR", "Stack trace: ${e.stackTrace}")
                 result.success(false)
             }
         }
@@ -2291,44 +2108,40 @@ class HealthPlugin(private var channel: MethodChannel? = null) :
 
     /** Save a Blood Pressure measurement with systolic and diastolic values */
     private fun writeBloodPressure(call: MethodCall, result: Result) {
-        val systolic = call.argument<Double>("systolic")!!
-        val diastolic = call.argument<Double>("diastolic")!!
-        val startTime = Instant.ofEpochMilli(call.argument<Long>("startTime")!!)
-        val recordingMethod = call.argument<Int>("recordingMethod")!!
-
         scope.launch {
             try {
-                healthConnectClient.insertRecords(
-                    listOf(
-                        BloodPressureRecord(
-                            time = startTime,
-                            systolic =
-                            Pressure.millimetersOfMercury(
-                                systolic
-                            ),
-                            diastolic =
-                            Pressure.millimetersOfMercury(
-                                diastolic
-                            ),
-                            zoneOffset = null,
-                            metadata = Metadata(
-                                recordingMethod = recordingMethod,
-                            ),
+                val systolic = call.argument<Double>("systolic")!!
+                val diastolic = call.argument<Double>("diastolic")!!
+                val startTime = Instant.ofEpochMilli(call.argument<Long>("startTime")!!)
+                val recordingMethod = call.argument<Int>("recordingMethod")!!
+
+                val list = listOf(
+                    BloodPressureRecord(
+                        time = startTime,
+                        systolic =
+                        Pressure.millimetersOfMercury(
+                            systolic
+                        ),
+                        diastolic =
+                        Pressure.millimetersOfMercury(
+                            diastolic
+                        ),
+                        zoneOffset = null,
+                        metadata = Metadata(
+                            recordingMethod = recordingMethod,
                         ),
                     ),
                 )
+                healthConnectClient.insertRecords(list)
                 result.success(true)
                 Log.i(
                     "FLUTTER_HEALTH::SUCCESS",
                     "[Health Connect] Blood pressure was successfully added!",
                 )
             } catch (e: Exception) {
-                Log.w(
-                    "FLUTTER_HEALTH::ERROR",
-                    "[Health Connect] There was an error adding the blood pressure",
-                )
-                Log.w("FLUTTER_HEALTH::ERROR", e.message ?: "unknown error")
-                Log.w("FLUTTER_HEALTH::ERROR", e.stackTrace.toString())
+                Log.w("FLUTTER_HEALTH::ERROR", "HealthConnect quota exceeded while writing blood pressure data")
+                Log.w("FLUTTER_HEALTH::ERROR", "Error details: ${e.message}")
+                Log.w("FLUTTER_HEALTH::ERROR", "Stack trace: ${e.stackTrace}")
                 result.success(false)
             }
         }
@@ -2336,18 +2149,18 @@ class HealthPlugin(private var channel: MethodChannel? = null) :
 
     /** Delete records of the given type in the time range */
     private fun deleteData(call: MethodCall, result: Result) {
-        val type = call.argument<String>("dataTypeKey")!!
-        val startTime = Instant.ofEpochMilli(call.argument<Long>("startTime")!!)
-        val endTime = Instant.ofEpochMilli(call.argument<Long>("endTime")!!)
-        if (!mapToType.containsKey(type)) {
-            Log.w("FLUTTER_HEALTH::ERROR", "Datatype $type not found in HC")
-            result.success(false)
-            return
-        }
-        val classType = mapToType[type]!!
-
         scope.launch {
             try {
+                val type = call.argument<String>("dataTypeKey")!!
+                val startTime = Instant.ofEpochMilli(call.argument<Long>("startTime")!!)
+                val endTime = Instant.ofEpochMilli(call.argument<Long>("endTime")!!)
+                if (!mapToType.containsKey(type)) {
+                    Log.w("FLUTTER_HEALTH::ERROR", "Datatype $type not found in HC")
+                    result.success(false)
+                    return
+                }
+                val classType = mapToType[type]!!
+
                 healthConnectClient.deleteRecords(
                     recordType = classType,
                     timeRangeFilter =
@@ -2358,6 +2171,9 @@ class HealthPlugin(private var channel: MethodChannel? = null) :
                 )
                 result.success(true)
             } catch (e: Exception) {
+                Log.w("FLUTTER_HEALTH::ERROR", "HealthConnect quota exceeded while deleting data")
+                Log.w("FLUTTER_HEALTH::ERROR", "Error details: ${e.message}")
+                Log.w("FLUTTER_HEALTH::ERROR", "Stack trace: ${e.stackTrace}")
                 result.success(false)
             }
         }
