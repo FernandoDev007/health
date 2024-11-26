@@ -596,10 +596,12 @@ class HealthPlugin(private var channel: MethodChannel? = null) :
         val args = call.arguments as HashMap<*, *>
         val types = (args["types"] as? ArrayList<*>)?.filterIsInstance<String>()!!
         val permissions = (args["permissions"] as? ArrayList<*>)?.filterIsInstance<Int>()!!
+        var responseSent = false
 
         val permList = mutableListOf<String>()
         for ((i, typeKey) in types.withIndex()) {
             if (!mapToType.containsKey(typeKey)) {
+                if (responseSent) return
                 Log.w(
                     "FLUTTER_HEALTH::ERROR",
                     "Datatype $typeKey not found in HC"
@@ -658,15 +660,17 @@ class HealthPlugin(private var channel: MethodChannel? = null) :
                 }
             }
         }
-        if (healthConnectRequestPermissionsLauncher == null) {
+        if (healthConnectRequestPermissionsLauncher == null && !responseSent) {
             result.success(false)
             Log.i("FLUTTER_HEALTH", "Permission launcher not found")
             return
         }
 
         // Store the result to be called in [onHealthConnectPermissionCallback]
-        mResult = result
-        healthConnectRequestPermissionsLauncher!!.launch(permList.toSet())
+        if (!responseSent) {
+            mResult = result
+            healthConnectRequestPermissionsLauncher!!.launch(permList.toSet())
+        }
     }
 
     /** Get all datapoints of the DataType within the given time range */
