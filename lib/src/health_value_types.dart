@@ -1,24 +1,24 @@
 part of '../health.dart';
 
 /// An abstract class for health values.
-@JsonSerializable(fieldRename: FieldRename.snake, includeIfNull: false)
+@JsonSerializable(includeIfNull: false, explicitToJson: true)
 class HealthValue extends Serializable {
   HealthValue();
 
   @override
   Function get fromJsonFunction => _$HealthValueFromJson;
   factory HealthValue.fromJson(Map<String, dynamic> json) =>
-      FromJsonFactory().fromJson(json) as HealthValue;
+      FromJsonFactory().fromJson<HealthValue>(json);
   @override
   Map<String, dynamic> toJson() => _$HealthValueToJson(this);
 }
 
-/// A numerical value from Apple HealthKit or Google Fit
+/// A numerical value from Apple HealthKit or Google Health Connect
 /// such as integer or double. E.g. 1, 2.9, -3
 ///
 /// Parameters:
 /// * [numericValue] - a [num] value for the [HealthDataPoint]
-@JsonSerializable(fieldRename: FieldRename.snake, includeIfNull: false)
+@JsonSerializable(includeIfNull: false, explicitToJson: true)
 class NumericHealthValue extends HealthValue {
   /// A [num] value for the [HealthDataPoint].
   num numericValue;
@@ -35,7 +35,7 @@ class NumericHealthValue extends HealthValue {
   @override
   Function get fromJsonFunction => _$NumericHealthValueFromJson;
   factory NumericHealthValue.fromJson(Map<String, dynamic> json) =>
-      FromJsonFactory().fromJson(json) as NumericHealthValue;
+      FromJsonFactory().fromJson<NumericHealthValue>(json);
   @override
   Map<String, dynamic> toJson() => _$NumericHealthValueToJson(this);
 
@@ -53,7 +53,7 @@ class NumericHealthValue extends HealthValue {
 /// * [frequencies] - array of frequencies of the test
 /// * [leftEarSensitivities] threshold in decibel for the left ear
 /// * [rightEarSensitivities] threshold in decibel for the left ear
-@JsonSerializable(fieldRename: FieldRename.snake, includeIfNull: false)
+@JsonSerializable(includeIfNull: false, explicitToJson: true)
 class AudiogramHealthValue extends HealthValue {
   /// Array of frequencies of the test.
   List<num> frequencies;
@@ -87,7 +87,7 @@ class AudiogramHealthValue extends HealthValue {
   @override
   Function get fromJsonFunction => _$AudiogramHealthValueFromJson;
   factory AudiogramHealthValue.fromJson(Map<String, dynamic> json) =>
-      FromJsonFactory().fromJson(json) as AudiogramHealthValue;
+      FromJsonFactory().fromJson<AudiogramHealthValue>(json);
   @override
   Map<String, dynamic> toJson() => _$AudiogramHealthValueToJson(this);
 
@@ -111,7 +111,7 @@ class AudiogramHealthValue extends HealthValue {
 /// * [totalEnergyBurnedUnit] - the unit of the total energy burned
 /// * [totalDistance] - the total distance of the workout
 /// * [totalDistanceUnit] - the unit of the total distance
-@JsonSerializable(fieldRename: FieldRename.snake, includeIfNull: false)
+@JsonSerializable(includeIfNull: false, explicitToJson: true)
 class WorkoutHealthValue extends HealthValue {
   /// The type of the workout.
   HealthWorkoutActivityType workoutActivityType;
@@ -153,7 +153,9 @@ class WorkoutHealthValue extends HealthValue {
   factory WorkoutHealthValue.fromHealthDataPoint(dynamic dataPoint) =>
       WorkoutHealthValue(
           workoutActivityType: HealthWorkoutActivityType.values.firstWhere(
-              (element) => element.name == dataPoint['workoutActivityType']),
+            (element) => element.name == dataPoint['workoutActivityType'],
+            orElse: () => HealthWorkoutActivityType.OTHER,
+          ),
           totalEnergyBurned: dataPoint['totalEnergyBurned'] != null
               ? (dataPoint['totalEnergyBurned'] as num).toInt()
               : null,
@@ -179,7 +181,7 @@ class WorkoutHealthValue extends HealthValue {
   @override
   Function get fromJsonFunction => _$WorkoutHealthValueFromJson;
   factory WorkoutHealthValue.fromJson(Map<String, dynamic> json) =>
-      FromJsonFactory().fromJson(json) as WorkoutHealthValue;
+      FromJsonFactory().fromJson<WorkoutHealthValue>(json);
   @override
   Map<String, dynamic> toJson() => _$WorkoutHealthValueToJson(this);
 
@@ -222,7 +224,7 @@ class WorkoutHealthValue extends HealthValue {
 /// * [averageHeartRate] - the average heart rate during the ECG (in BPM)
 /// * [samplingFrequency] - the frequency at which the Apple Watch sampled the voltage.
 /// * [classification] - an [ElectrocardiogramClassification]
-@JsonSerializable(fieldRename: FieldRename.snake, includeIfNull: false)
+@JsonSerializable(includeIfNull: false, explicitToJson: true)
 class ElectrocardiogramHealthValue extends HealthValue {
   /// An array of [ElectrocardiogramVoltageValue]s.
   List<ElectrocardiogramVoltageValue> voltageValues;
@@ -246,7 +248,7 @@ class ElectrocardiogramHealthValue extends HealthValue {
   @override
   Function get fromJsonFunction => _$ElectrocardiogramHealthValueFromJson;
   factory ElectrocardiogramHealthValue.fromJson(Map<String, dynamic> json) =>
-      FromJsonFactory().fromJson(json) as ElectrocardiogramHealthValue;
+      FromJsonFactory().fromJson<ElectrocardiogramHealthValue>(json);
   @override
   Map<String, dynamic> toJson() => _$ElectrocardiogramHealthValueToJson(this);
 
@@ -281,7 +283,7 @@ class ElectrocardiogramHealthValue extends HealthValue {
 }
 
 /// Single voltage value belonging to a [ElectrocardiogramHealthValue]
-@JsonSerializable(fieldRename: FieldRename.snake, includeIfNull: false)
+@JsonSerializable(includeIfNull: false, explicitToJson: true)
 class ElectrocardiogramVoltageValue extends HealthValue {
   /// Voltage of the ECG.
   num voltage;
@@ -304,7 +306,7 @@ class ElectrocardiogramVoltageValue extends HealthValue {
   @override
   Function get fromJsonFunction => _$ElectrocardiogramVoltageValueFromJson;
   factory ElectrocardiogramVoltageValue.fromJson(Map<String, dynamic> json) =>
-      FromJsonFactory().fromJson(json) as ElectrocardiogramVoltageValue;
+      FromJsonFactory().fromJson<ElectrocardiogramVoltageValue>(json);
   @override
   Map<String, dynamic> toJson() => _$ElectrocardiogramVoltageValueToJson(this);
 
@@ -321,32 +323,119 @@ class ElectrocardiogramVoltageValue extends HealthValue {
   String toString() => '$runtimeType - voltage: $voltage';
 }
 
+/// A [HealthValue] object from insulin delivery (iOS only)
+@JsonSerializable(includeIfNull: false, explicitToJson: true)
+class InsulinDeliveryHealthValue extends HealthValue {
+  /// The amount of units of insulin taken
+  double units;
+
+  /// If it's basal, bolus or unknown reason for insulin dosage
+  InsulinDeliveryReason reason;
+
+  InsulinDeliveryHealthValue({
+    required this.units,
+    required this.reason,
+  });
+
+  factory InsulinDeliveryHealthValue.fromHealthDataPoint(dynamic dataPoint) {
+    final units = dataPoint['value'] as num;
+
+    final metadata = dataPoint['metadata'] == null
+        ? null
+        : Map<String, dynamic>.from(dataPoint['metadata'] as Map);
+    final reasonIndex =
+        metadata == null || !metadata.containsKey('HKInsulinDeliveryReason')
+            ? 0
+            : metadata['HKInsulinDeliveryReason'] as double;
+    final reason = InsulinDeliveryReason.values[reasonIndex.toInt()];
+
+    return InsulinDeliveryHealthValue(units: units.toDouble(), reason: reason);
+  }
+
+  @override
+  Function get fromJsonFunction => _$InsulinDeliveryHealthValueFromJson;
+  factory InsulinDeliveryHealthValue.fromJson(Map<String, dynamic> json) =>
+      FromJsonFactory().fromJson<InsulinDeliveryHealthValue>(json);
+  @override
+  Map<String, dynamic> toJson() => _$InsulinDeliveryHealthValueToJson(this);
+
+  @override
+  bool operator ==(Object other) =>
+      other is InsulinDeliveryHealthValue &&
+      units == other.units &&
+      reason == other.reason;
+
+  @override
+  int get hashCode => Object.hash(units, reason);
+
+  @override
+  String toString() => '$runtimeType - units: $units, reason: $reason';
+}
+
 /// A [HealthValue] object for nutrition.
 ///
 /// Parameters:
-///  * [protein] - the amount of protein in grams
-///  * [calories] - the amount of calories in kcal
-///  * [fat] - the amount of fat in grams
-///  * [name] - the name of the food
-///  * [carbs] - the amount of carbs in grams
-///  * [caffeine] - the amount of caffeine in grams
 ///  * [mealType] - the type of meal
-@JsonSerializable(fieldRename: FieldRename.snake, includeIfNull: false)
+///  * [name] - the name of the food
+///  * [b1Thiamine] - the amount of thiamine (B1) in grams
+///  * [b2Riboflavin] - the amount of riboflavin (B2) in grams
+///  * [b3Niacin] - the amount of niacin (B3) in grams
+///  * [b5PantothenicAcid] - the amount of pantothenic acid (B5) in grams
+///  * [b6Pyridoxine] - the amount of pyridoxine (B6) in grams
+///  * [b7Biotin] - the amount of biotin (B7) in grams
+///  * [b9Folate] - the amount of folate (B9) in grams
+///  * [b12Cobalamin] - the amount of cobalamin (B12) in grams
+///  * [caffeine] - the amount of caffeine in grams
+///  * [calcium] - the amount of calcium in grams
+///  * [calories] - the amount of calories in kcal
+///  * [carbs] - the amount of carbs in grams
+///  * [chloride] - the amount of chloride in grams
+///  * [cholesterol] - the amount of cholesterol in grams
+///  * [choline] - the amount of choline in grams
+///  * [chromium] - the amount of chromium in grams
+///  * [copper] - the amount of copper in grams
+///  * [fat] - the amount of fat in grams
+///  * [fatMonounsaturated] - the amount of monounsaturated fat in grams
+///  * [fatPolyunsaturated] - the amount of polyunsaturated fat in grams
+///  * [fatSaturated] - the amount of saturated fat in grams
+///  * [fatTransMonoenoic] - the amount of
+///  * [fatUnsaturated] - the amount of unsaturated fat in grams
+///  * [fiber] - the amount of fiber in grams
+///  * [iodine] - the amount of iodine in grams
+///  * [iron] - the amount of iron in grams
+///  * [magnesium] - the amount of magnesium in grams
+///  * [manganese] - the amount of manganese in grams
+///  * [molybdenum] - the amount of molybdenum in grams
+///  * [phosphorus] - the amount of phosphorus in grams
+///  * [potassium] - the amount of potassium in grams
+///  * [protein] - the amount of protein in grams
+///  * [selenium] - the amount of selenium in grams
+///  * [sodium] - the amount of sodium in grams
+///  * [sugar] - the amount of sugar in grams
+///  * [vitaminA] - the amount of vitamin A in grams
+///  * [vitaminC] - the amount of vitamin C in grams
+///  * [vitaminD] - the amount of vitamin D in grams
+///  * [vitaminE] - the amount of vitamin E in grams
+///  * [vitaminK] - the amount of vitamin K in grams
+///  * [water] - the amount of water in grams
+///  * [zinc] - the amount of zinc in grams
+
+@JsonSerializable(includeIfNull: false, explicitToJson: true)
 class NutritionHealthValue extends HealthValue {
+  /// The name of the food.
+  String? name;
+
   /// The type of meal.
   String? mealType;
-
-  /// The amount of protein in grams.
-  double? protein;
 
   /// The amount of calories in kcal.
   double? calories;
 
+  /// The amount of protein in grams.
+  double? protein;
+
   /// The amount of fat in grams.
   double? fat;
-
-  /// The name of the food.
-  String? name;
 
   /// The amount of carbs in grams.
   double? carbs;
@@ -354,44 +443,182 @@ class NutritionHealthValue extends HealthValue {
   /// The amount of caffeine in grams.
   double? caffeine;
 
+  /// The amount of vitamin A in grams.
+  double? vitaminA;
+
+  /// The amount of thiamine (B1) in grams.
+  double? b1Thiamine;
+
+  /// The amount of riboflavin (B2) in grams.
+  double? b2Riboflavin;
+
+  /// The amount of niacin (B3) in grams.
+  double? b3Niacin;
+
+  /// The amount of pantothenic acid (B5) in grams.
+  double? b5PantothenicAcid;
+
+  /// The amount of pyridoxine (B6) in grams.
+  double? b6Pyridoxine;
+
+  /// The amount of biotin (B7) in grams.
+  double? b7Biotin;
+
+  /// The amount of folate (B9) in grams.
+  double? b9Folate;
+
+  /// The amount of cobalamin (B12) in grams.
+  double? b12Cobalamin;
+
+  /// The amount of vitamin C in grams.
+  double? vitaminC;
+
+  /// The amount of vitamin D in grams.
+  double? vitaminD;
+
+  /// The amount of vitamin E in grams.
+  double? vitaminE;
+
+  /// The amount of vitamin K in grams.
+  double? vitaminK;
+
+  /// The amount of calcium in grams.
+  double? calcium;
+
+  /// The amount of chloride in grams.
+  double? chloride;
+
+  /// The amount of cholesterol in grams.
+  double? cholesterol;
+
+  /// The amount of choline in grams.
+  double? choline;
+
+  /// The amount of chromium in grams.
+  double? chromium;
+
+  /// The amount of copper in grams.
+  double? copper;
+
+  /// The amount of unsaturated fat in grams.
+  double? fatUnsaturated;
+
+  /// The amount of monounsaturated fat in grams.
+  double? fatMonounsaturated;
+
+  /// The amount of polyunsaturated fat in grams.
+  double? fatPolyunsaturated;
+
+  /// The amount of saturated fat in grams.
+  double? fatSaturated;
+
+  /// The amount of trans-monoenoic fat in grams.
+  double? fatTransMonoenoic;
+
+  /// The amount of fiber in grams.
+  double? fiber;
+
+  /// The amount of iodine in grams.
+  double? iodine;
+
+  /// The amount of iron in grams.
+  double? iron;
+
+  /// The amount of magnesium in grams.
+  double? magnesium;
+
+  /// The amount of manganese in grams.
+  double? manganese;
+
+  /// The amount of molybdenum in grams.
+  double? molybdenum;
+
+  /// The amount of phosphorus in grams.
+  double? phosphorus;
+
+  /// The amount of potassium in grams.
+  double? potassium;
+
+  /// The amount of selenium in grams.
+  double? selenium;
+
+  /// The amount of sodium in grams.
+  double? sodium;
+
+  /// The amount of sugar in grams.
+  double? sugar;
+
+  /// The amount of water in grams.
+  double? water;
+
+  /// The amount of zinc in grams.
+  double? zinc;
+
   NutritionHealthValue({
-    this.mealType,
-    this.protein,
-    this.calories,
-    this.fat,
     this.name,
+    this.mealType,
+    this.calories,
+    this.protein,
+    this.fat,
     this.carbs,
     this.caffeine,
+    this.vitaminA,
+    this.b1Thiamine,
+    this.b2Riboflavin,
+    this.b3Niacin,
+    this.b5PantothenicAcid,
+    this.b6Pyridoxine,
+    this.b7Biotin,
+    this.b9Folate,
+    this.b12Cobalamin,
+    this.vitaminC,
+    this.vitaminD,
+    this.vitaminE,
+    this.vitaminK,
+    this.calcium,
+    this.chloride,
+    this.cholesterol,
+    this.choline,
+    this.chromium,
+    this.copper,
+    this.fatUnsaturated,
+    this.fatMonounsaturated,
+    this.fatPolyunsaturated,
+    this.fatSaturated,
+    this.fatTransMonoenoic,
+    this.fiber,
+    this.iodine,
+    this.iron,
+    this.magnesium,
+    this.manganese,
+    this.molybdenum,
+    this.phosphorus,
+    this.potassium,
+    this.selenium,
+    this.sodium,
+    this.sugar,
+    this.water,
+    this.zinc,
   });
 
   @override
   Function get fromJsonFunction => _$NutritionHealthValueFromJson;
   factory NutritionHealthValue.fromJson(Map<String, dynamic> json) =>
-      FromJsonFactory().fromJson(json) as NutritionHealthValue;
+      (json) as NutritionHealthValue;
   @override
   Map<String, dynamic> toJson() => _$NutritionHealthValueToJson(this);
 
+  static double? _toDoubleOrNull(num? value) => value?.toDouble();
+
   /// Create a [NutritionHealthValue] based on a health data point from native data format.
-  factory NutritionHealthValue.fromHealthDataPoint(dynamic dataPoint) =>
-      NutritionHealthValue(
-        mealType: dataPoint['mealType'] as String,
-        protein: dataPoint['protein'] != null
-            ? (dataPoint['protein'] as num).toDouble()
-            : null,
-        calories: dataPoint['calories'] != null
-            ? (dataPoint['calories'] as num).toDouble()
-            : null,
-        fat: dataPoint['fat'] != null
-            ? (dataPoint['fat'] as num).toDouble()
-            : null,
-        name: dataPoint['name'] != null ? (dataPoint['name'] as String) : null,
-        carbs: dataPoint['carbs'] != null
-            ? (dataPoint['carbs'] as num).toDouble()
-            : null,
-        caffeine: dataPoint['caffeine'] != null
-            ? (dataPoint['caffeine'] as num).toDouble()
-            : null,
-      );
+  factory NutritionHealthValue.fromHealthDataPoint(dynamic dataPoint) {
+    dataPoint = dataPoint as Map<Object?, Object?>;
+    // where key is not null
+    final Map<String, Object?> dataPointMap = Map.fromEntries(dataPoint.entries
+        .where((entry) => entry.key != null)
+        .map((entry) => MapEntry(entry.key as String, entry.value)));
+    return _$NutritionHealthValueFromJson(dataPointMap);
+  }
 
   @override
   String toString() => """$runtimeType - protein: ${protein.toString()},
@@ -400,20 +627,308 @@ class NutritionHealthValue extends HealthValue {
     name: ${name.toString()},
     carbs: ${carbs.toString()},
     caffeine: ${caffeine.toString()},
-    mealType: $mealType""";
+    mealType: $mealType,
+    vitaminA: ${vitaminA.toString()},
+    b1Thiamine: ${b1Thiamine.toString()},
+    b2Riboflavin: ${b2Riboflavin.toString()},
+    b3Niacin: ${b3Niacin.toString()},
+    b5PantothenicAcid: ${b5PantothenicAcid.toString()},
+    b6Pyridoxine: ${b6Pyridoxine.toString()},
+    b7Biotin: ${b7Biotin.toString()},
+    b9Folate: ${b9Folate.toString()},
+    b12Cobalamin: ${b12Cobalamin.toString()},
+    vitaminC: ${vitaminC.toString()},
+    vitaminD: ${vitaminD.toString()},
+    vitaminE: ${vitaminE.toString()},
+    vitaminK: ${vitaminK.toString()},
+    calcium: ${calcium.toString()},
+    chloride: ${chloride.toString()},
+    cholesterol: ${cholesterol.toString()},
+    choline: ${choline.toString()},
+    chromium: ${chromium.toString()},
+    copper: ${copper.toString()},
+    unsaturatedFat: ${fatUnsaturated.toString()},
+    fatMonounsaturated: ${fatMonounsaturated.toString()},
+    fatPolyunsaturated: ${fatPolyunsaturated.toString()},
+    fatSaturated: ${fatSaturated.toString()},
+    fatTransMonoenoic: ${fatTransMonoenoic.toString()},
+    fiber: ${fiber.toString()},
+    iodine: ${iodine.toString()},
+    iron: ${iron.toString()},
+    magnesium: ${magnesium.toString()},
+    manganese: ${manganese.toString()},
+    molybdenum: ${molybdenum.toString()},
+    phosphorus: ${phosphorus.toString()},
+    potassium: ${potassium.toString()},
+    selenium: ${selenium.toString()},
+    sodium: ${sodium.toString()},
+    sugar: ${sugar.toString()},
+    water: ${water.toString()},
+    zinc: ${zinc.toString()}""";
 
   @override
   bool operator ==(Object other) =>
       other is NutritionHealthValue &&
-      other.protein == protein &&
-      other.calories == calories &&
-      other.fat == fat &&
       other.name == name &&
+      other.mealType == mealType &&
+      other.calories == calories &&
+      other.protein == protein &&
+      other.fat == fat &&
       other.carbs == carbs &&
       other.caffeine == caffeine &&
-      other.mealType == mealType;
+      other.vitaminA == vitaminA &&
+      other.b1Thiamine == b1Thiamine &&
+      other.b2Riboflavin == b2Riboflavin &&
+      other.b3Niacin == b3Niacin &&
+      other.b5PantothenicAcid == b5PantothenicAcid &&
+      other.b6Pyridoxine == b6Pyridoxine &&
+      other.b7Biotin == b7Biotin &&
+      other.b9Folate == b9Folate &&
+      other.b12Cobalamin == b12Cobalamin &&
+      other.vitaminC == vitaminC &&
+      other.vitaminD == vitaminD &&
+      other.vitaminE == vitaminE &&
+      other.vitaminK == vitaminK &&
+      other.calcium == calcium &&
+      other.chloride == chloride &&
+      other.cholesterol == cholesterol &&
+      other.choline == choline &&
+      other.chromium == chromium &&
+      other.copper == copper &&
+      other.fatUnsaturated == fatUnsaturated &&
+      other.fatMonounsaturated == fatMonounsaturated &&
+      other.fatPolyunsaturated == fatPolyunsaturated &&
+      other.fatSaturated == fatSaturated &&
+      other.fatTransMonoenoic == fatTransMonoenoic &&
+      other.fiber == fiber &&
+      other.iodine == iodine &&
+      other.iron == iron &&
+      other.magnesium == magnesium &&
+      other.manganese == manganese &&
+      other.molybdenum == molybdenum &&
+      other.phosphorus == phosphorus &&
+      other.potassium == potassium &&
+      other.selenium == selenium &&
+      other.sodium == sodium &&
+      other.sugar == sugar &&
+      other.water == water &&
+      other.zinc == zinc;
+
+  @override
+  int get hashCode => Object.hashAll([
+        protein,
+        calories,
+        fat,
+        name,
+        carbs,
+        caffeine,
+        vitaminA,
+        b1Thiamine,
+        b2Riboflavin,
+        b3Niacin,
+        b5PantothenicAcid,
+        b6Pyridoxine,
+        b7Biotin,
+        b9Folate,
+        b12Cobalamin,
+        vitaminC,
+        vitaminD,
+        vitaminE,
+        vitaminK,
+        calcium,
+        chloride,
+        cholesterol,
+        choline,
+        chromium,
+        copper,
+        fatUnsaturated,
+        fatMonounsaturated,
+        fatPolyunsaturated,
+        fatSaturated,
+        fatTransMonoenoic,
+        fiber,
+        iodine,
+        iron,
+        magnesium,
+        manganese,
+        molybdenum,
+        phosphorus,
+        potassium,
+        selenium,
+        sodium,
+        sugar,
+        water,
+        zinc,
+      ]);
+}
+
+enum MenstrualFlow {
+  unspecified,
+  none,
+  light,
+  medium,
+  heavy,
+  spotting;
+
+  static MenstrualFlow fromHealthConnect(int value) {
+    switch (value) {
+      case 0:
+        return MenstrualFlow.unspecified;
+      case 1:
+        return MenstrualFlow.light;
+      case 2:
+        return MenstrualFlow.medium;
+      case 3:
+        return MenstrualFlow.heavy;
+      default:
+        return MenstrualFlow.unspecified;
+    }
+  }
+
+  static MenstrualFlow fromHealthKit(int value) {
+    switch (value) {
+      case 1:
+        return MenstrualFlow.unspecified;
+      case 2:
+        return MenstrualFlow.light;
+      case 3:
+        return MenstrualFlow.medium;
+      case 4:
+        return MenstrualFlow.heavy;
+      case 5:
+        return MenstrualFlow.none;
+      default:
+        return MenstrualFlow.unspecified;
+    }
+  }
+
+  static int toHealthConnect(MenstrualFlow value) {
+    switch (value) {
+      case MenstrualFlow.unspecified:
+        return 0;
+      case MenstrualFlow.light:
+        return 1;
+      case MenstrualFlow.medium:
+        return 2;
+      case MenstrualFlow.heavy:
+        return 3;
+      default:
+        return -1;
+    }
+  }
+}
+
+enum RecordingMethod {
+  unknown,
+  active,
+  automatic,
+  manual;
+
+  /// Create a [RecordingMethod] from an integer.
+  /// 0: unknown, 1: active, 2: automatic, 3: manual
+  /// If the integer is not in the range of 0-3, [RecordingMethod.unknown] is returned.
+  /// This is used to align the recording method with the platform.
+  static RecordingMethod fromInt(int? recordingMethod) {
+    switch (recordingMethod) {
+      case 0:
+        return RecordingMethod.unknown;
+      case 1:
+        return RecordingMethod.active;
+      case 2:
+        return RecordingMethod.automatic;
+      case 3:
+        return RecordingMethod.manual;
+      default:
+        return RecordingMethod.unknown;
+    }
+  }
+
+  /// Convert this [RecordingMethod] to an integer.
+  int toInt() {
+    switch (this) {
+      case RecordingMethod.unknown:
+        return 0;
+      case RecordingMethod.active:
+        return 1;
+      case RecordingMethod.automatic:
+        return 2;
+      case RecordingMethod.manual:
+        return 3;
+    }
+  }
+}
+
+/// A [HealthValue] object for menstrual flow.
+///
+/// Parameters:
+/// * [flowValue] - the flow value
+/// * [isStartOfCycle] - indicator whether or not this occurrence is the first day of the menstrual cycle (iOS only)
+/// * [wasUserEntered] - indicator whether or not the data was entered by the user (iOS only)
+/// * [dateTime] - the date and time of the menstrual flow
+@JsonSerializable(includeIfNull: false, explicitToJson: true)
+class MenstruationFlowHealthValue extends HealthValue {
+  final MenstrualFlow? flow;
+  final bool? isStartOfCycle;
+  final bool? wasUserEntered;
+  final DateTime dateTime;
+
+  MenstruationFlowHealthValue({
+    required this.flow,
+    required this.dateTime,
+    this.isStartOfCycle,
+    this.wasUserEntered,
+  });
+
+  @override
+  String toString() =>
+      "flow: ${flow?.name}, startOfCycle: $isStartOfCycle, wasUserEntered: $wasUserEntered, dateTime: $dateTime";
+
+  factory MenstruationFlowHealthValue.fromHealthDataPoint(dynamic dataPoint) {
+    // Parse flow value safely
+    final flowValueIndex = dataPoint['value'] as int? ?? 0;
+    MenstrualFlow? menstrualFlow;
+    if (Platform.isAndroid) {
+      menstrualFlow = MenstrualFlow.fromHealthConnect(flowValueIndex);
+    } else if (Platform.isIOS) {
+      menstrualFlow = MenstrualFlow.fromHealthKit(flowValueIndex);
+    }
+
+    return MenstruationFlowHealthValue(
+      flow: menstrualFlow,
+      isStartOfCycle:
+          dataPoint['metadata']?.containsKey('HKMenstrualCycleStart') == true
+              ? dataPoint['metadata']['HKMenstrualCycleStart'] == 1.0
+              : null,
+      wasUserEntered:
+          dataPoint['metadata']?.containsKey('HKWasUserEntered') == true
+              ? dataPoint['metadata']['HKWasUserEntered'] == 1.0
+              : null,
+      dateTime:
+          DateTime.fromMillisecondsSinceEpoch(dataPoint['date_from'] as int),
+    );
+  }
+
+  @override
+  Function get fromJsonFunction => _$MenstruationFlowHealthValueFromJson;
+
+  factory MenstruationFlowHealthValue.fromJson(Map<String, dynamic> json) =>
+      FromJsonFactory().fromJson<MenstruationFlowHealthValue>(json);
+
+  @override
+  Map<String, dynamic> toJson() => _$MenstruationFlowHealthValueToJson(this);
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        other is MenstruationFlowHealthValue &&
+            runtimeType == other.runtimeType &&
+            flow == other.flow &&
+            isStartOfCycle == other.isStartOfCycle &&
+            wasUserEntered == other.wasUserEntered &&
+            dateTime == other.dateTime;
+  }
 
   @override
   int get hashCode =>
-      Object.hash(protein, calories, fat, name, carbs, caffeine);
+      Object.hash(flow, isStartOfCycle, wasUserEntered, dateTime);
 }
