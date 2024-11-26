@@ -83,8 +83,10 @@ const val WORKOUT = "WORKOUT"
 const val TOTAL_CALORIES_BURNED = "TOTAL_CALORIES_BURNED"
 
 
-class HealthPlugin(private var channel: MethodChannel? = null) :
+class HealthPlugin(private var channel: MethodChannel? = null) : 
     MethodCallHandler, ActivityResultListener, Result, ActivityAware, FlutterPlugin {
+    private lateinit var scope: CoroutineScope
+    private lateinit var healthConnectClient: HealthConnectClient
     private var mResult: Result? = null
     private var handler: Handler? = null
     private var activity: Activity? = null
@@ -92,8 +94,6 @@ class HealthPlugin(private var channel: MethodChannel? = null) :
     private var threadPoolExecutor: ExecutorService? = null
     private var healthConnectRequestPermissionsLauncher: ActivityResultLauncher<Set<String>>? =
         null
-    private lateinit var healthConnectClient: HealthConnectClient
-    private lateinit var scope: CoroutineScope
 
     // Wrapper for basic HealthConnect operations
     private fun executeHealthConnectOperation(operation: () -> Unit, errorMessage: String) {
@@ -248,19 +248,28 @@ class HealthPlugin(private var channel: MethodChannel? = null) :
     }
 
     private fun onHealthConnectPermissionCallback(permissionGranted: Set<String>) {
+        // Check if mResult has already been used
+        if (mResult == null) {
+            Log.w("FLUTTER_HEALTH::ERROR", "Permission callback called but result handler was null")
+            return
+        }
+
+        val result = mResult
+        mResult = null  // Clear reference immediately to prevent multiple usage
+
         try {
             if (permissionGranted.isEmpty()) {
-                mResult?.success(false)
                 Log.i("FLUTTER_HEALTH", "Health Connect permissions were not granted! Make sure to declare the required permissions in the AndroidManifest.xml file.")
+                result?.success(false)
             } else {
-                mResult?.success(true)
                 Log.i("FLUTTER_HEALTH", "${permissionGranted.size} Health Connect permissions were granted!")
                 Log.i("FLUTTER_HEALTH", "Permissions granted: $permissionGranted")
+                result?.success(true)
             }
         } catch (e: Exception) {
             Log.w("FLUTTER_HEALTH::ERROR", "Error in permission callback")
             Log.w("FLUTTER_HEALTH::ERROR", "Error details: ${e.message}")
-            mResult?.success(false)
+            result?.success(false)
         }
     }
 
@@ -393,7 +402,7 @@ class HealthPlugin(private var channel: MethodChannel? = null) :
      * Save menstrual flow data
      */
     private fun writeMenstruationFlow(call: MethodCall, result: Result) {
-        scope.launch {
+        CoroutineScope(Dispatchers.Main).launch {
             try {
                 writeData(call, result)
             } catch (e: Exception) {
@@ -408,7 +417,7 @@ class HealthPlugin(private var channel: MethodChannel? = null) :
      * Save the blood oxygen saturation
      */
     private fun writeBloodOxygen(call: MethodCall, result: Result) {
-        scope.launch {
+        CoroutineScope(Dispatchers.Main).launch {
             try {
                 writeData(call, result)
             } catch (e: Exception) {
@@ -493,7 +502,7 @@ class HealthPlugin(private var channel: MethodChannel? = null) :
 
     /** get the step records manually and filter out manual entries **/
     private fun getStepCountFiltered(start: Long, end: Long, recordingMethodsToFilter: List<Int>, result: Result) {
-        scope.launch {
+        CoroutineScope(Dispatchers.Main).launch {
             try {
                 val request =
                     ReadRecordsRequest(
@@ -553,7 +562,7 @@ class HealthPlugin(private var channel: MethodChannel? = null) :
                     "FLUTTER_HEALTH",
                     "Filtering record with recording method ${record.metadata.recordingMethod}, filtering by $recordingMethodsToFilter. Result: ${recordingMethodsToFilter.contains(record.metadata.recordingMethod)}"
                 )
-                return@filter !recordingMethodsToFilter.contains(record.metadata.recordingMethod)
+                !recordingMethodsToFilter.contains(record.metadata.recordingMethod)
             }
         } catch (e: Exception) {
             Log.w("FLUTTER_HEALTH::ERROR", "Error filtering records by recording methods")
@@ -567,67 +576,67 @@ class HealthPlugin(private var channel: MethodChannel? = null) :
         val types = (args["types"] as? ArrayList<*>)?.filterIsInstance<String>()!!
         val permissions = (args["permissions"] as? ArrayList<*>)?.filterIsInstance<Int>()!!
 
-        scope.launch {
+        CoroutineScope(Dispatchers.Main).launch {
             try {
                 val permList = mutableListOf<String>()
                 for ((i, typeKey) in types.withIndex()) {
-                    if (!mapToType.containsKey(typeKey)) {
-                        Log.w(
-                            "FLUTTER_HEALTH::ERROR",
-                            "Datatype $typeKey not found in HC"
-                        )
-                        result.success(false)
-                        return
-                    }
-                    val access = permissions[i]
-                    val dataType = mapToType[typeKey]!!
-                    if (access == 0) {
-                        permList.add(
-                            HealthPermission.getReadPermission(dataType),
-                        )
-                    } else {
-                        permList.addAll(
-                            listOf(
-                                HealthPermission.getReadPermission(
-                                    dataType
-                                ),
-                                HealthPermission.getWritePermission(
-                                    dataType
-                                ),
-                            ),
-                        )
-                    }
-                    // Workout also needs distance and total energy burned too
-                    if (typeKey == WORKOUT) {
+                    if (mapToType.containsKey(typeKey)) {
+                        val access = permissions[i]
+                        val dataType = mapToType[typeKey]!!
                         if (access == 0) {
-                            permList.addAll(
-                                listOf(
-                                    HealthPermission.getReadPermission(
-                                        DistanceRecord::class
-                                    ),
-                                    HealthPermission.getReadPermission(
-                                        TotalCaloriesBurnedRecord::class
-                                    ),
-                                ),
+                            permList.add(
+                                HealthPermission.getReadPermission(dataType),
                             )
                         } else {
                             permList.addAll(
                                 listOf(
                                     HealthPermission.getReadPermission(
-                                        DistanceRecord::class
-                                    ),
-                                    HealthPermission.getReadPermission(
-                                        TotalCaloriesBurnedRecord::class
+                                        dataType
                                     ),
                                     HealthPermission.getWritePermission(
-                                        DistanceRecord::class
-                                    ),
-                                    HealthPermission.getWritePermission(
-                                        TotalCaloriesBurnedRecord::class
+                                        dataType
                                     ),
                                 ),
                             )
                         }
+                        // Workout also needs distance and total energy burned too
+                        if (typeKey == WORKOUT) {
+                            if (access == 0) {
+                                permList.addAll(
+                                    listOf(
+                                        HealthPermission.getReadPermission(
+                                            DistanceRecord::class
+                                        ),
+                                        HealthPermission.getReadPermission(
+                                            TotalCaloriesBurnedRecord::class
+                                        ),
+                                    ),
+                                )
+                            } else {
+                                permList.addAll(
+                                    listOf(
+                                        HealthPermission.getReadPermission(
+                                            DistanceRecord::class
+                                        ),
+                                        HealthPermission.getReadPermission(
+                                            TotalCaloriesBurnedRecord::class
+                                        ),
+                                        HealthPermission.getWritePermission(
+                                            DistanceRecord::class
+                                        ),
+                                        HealthPermission.getWritePermission(
+                                            TotalCaloriesBurnedRecord::class
+                                        ),
+                                    ),
+                                )
+                            }
+                        }
+                    } else {
+                        Log.w(
+                            "FLUTTER_HEALTH::ERROR",
+                            "Datatype $typeKey not found in HC"
+                        )
+                        result.success(false)
                     }
                 }
                 result.success(
@@ -724,6 +733,7 @@ class HealthPlugin(private var channel: MethodChannel? = null) :
                 }
             }
             if (healthConnectRequestPermissionsLauncher == null && !responseSent) {
+                responseSent = true
                 result.success(false)
                 Log.i("FLUTTER_HEALTH", "Permission launcher not found")
                 return
@@ -731,6 +741,7 @@ class HealthPlugin(private var channel: MethodChannel? = null) :
 
             // Store the result to be called in [onHealthConnectPermissionCallback]
             if (!responseSent) {
+                responseSent = true
                 mResult = result
                 healthConnectRequestPermissionsLauncher!!.launch(permList.toSet())
             }
@@ -754,7 +765,7 @@ class HealthPlugin(private var channel: MethodChannel? = null) :
             "Getting data for $dataType between $startTime and $endTime, filtering by $recordingMethodsToFilter"
         )
 
-        scope.launch {
+        CoroutineScope(Dispatchers.Main).launch {
             try {
                 mapToType[dataType]?.let { classType ->
                     val records = mutableListOf<Record>()
@@ -1382,7 +1393,12 @@ class HealthPlugin(private var channel: MethodChannel? = null) :
     // TODO rewrite sleep to fit new update better --> compare with Apple and see if we should
     // not adopt a single type with attached stages approach
     private fun writeData(call: MethodCall, result: Result) {
-        scope.launch {
+        if (!::healthConnectClient.isInitialized) {
+            result.success(false)
+            return
+        }
+        
+        CoroutineScope(Dispatchers.Main).launch {
             try {
                 val type = call.argument<String>("dataTypeKey")!!
                 val startTime = call.argument<Long>("startTime")!!
@@ -2009,19 +2025,17 @@ class HealthPlugin(private var channel: MethodChannel? = null) :
                     }
                     healthConnectClient.insertRecords(listOf(record))
                     result.success(true)
-                } catch (e: Exception) {
-                    Log.w("FLUTTER_HEALTH::ERROR", "HealthConnect quota exceeded while writing data")
-                    Log.w("FLUTTER_HEALTH::ERROR", "Error details: ${e.message}")
-                    Log.w("FLUTTER_HEALTH::ERROR", "Stack trace: ${e.stackTrace}")
-                    result.success(false) // Return false to indicate failure
-                }
+            } catch (e: Exception) {
+                Log.w("FLUTTER_HEALTH::ERROR", "HealthConnect quota exceeded while writing data")
+                Log.w("FLUTTER_HEALTH::ERROR", "Error details: ${e.message}")
+                result.success(false)
             }
         }
     }
 
     /** Save a Workout session with options for distance and calories expended */
     private fun writeWorkoutData(call: MethodCall, result: Result) {
-        scope.launch {
+        CoroutineScope(Dispatchers.Main).launch {
             try {
                 val type = call.argument<String>("activityType")!!
                 val startTime = Instant.ofEpochMilli(call.argument<Long>("startTime")!!)
@@ -2029,74 +2043,75 @@ class HealthPlugin(private var channel: MethodChannel? = null) :
                 val totalEnergyBurned = call.argument<Int>("totalEnergyBurned")
                 val totalDistance = call.argument<Int>("totalDistance")
                 val recordingMethod = call.argument<Int>("recordingMethod")!!
-                if (!workoutTypeMap.containsKey(type)) {
+
+                if (workoutTypeMap.containsKey(type)) {
+                    val workoutType = workoutTypeMap[type]!!
+                    val title = call.argument<String>("title") ?: type
+
+                    val list = mutableListOf<Record>()
+                    list.add(
+                        ExerciseSessionRecord(
+                            startTime = startTime,
+                            startZoneOffset = null,
+                            endTime = endTime,
+                            endZoneOffset = null,
+                            exerciseType = workoutType,
+                            title = title,
+                                metadata = Metadata(
+                                    recordingMethod = recordingMethod,
+                                ),
+                        ),
+                    )
+                    if (totalDistance != null) {
+                        list.add(
+                            DistanceRecord(
+                                startTime = startTime,
+                                startZoneOffset = null,
+                                endTime = endTime,
+                                endZoneOffset = null,
+                                distance =
+                                Length.meters(
+                                    totalDistance.toDouble()
+                                ),
+                                metadata = Metadata(
+                                    recordingMethod = recordingMethod,
+                                ),
+                            ),
+                        )
+                    }
+                    if (totalEnergyBurned != null) {
+                        list.add(
+                            TotalCaloriesBurnedRecord(
+                                startTime = startTime,
+                                startZoneOffset = null,
+                                endTime = endTime,
+                                endZoneOffset = null,
+                                energy =
+                                Energy.kilocalories(
+                                    totalEnergyBurned
+                                        .toDouble()
+                                ),
+                                metadata = Metadata(
+                                    recordingMethod = recordingMethod,
+                                ),
+                            ),
+                        )
+                    }
+                    healthConnectClient.insertRecords(
+                        list,
+                    )
+                    result.success(true)
+                    Log.i(
+                    "FLUTTER_HEALTH::SUCCESS",
+                        "[Health Connect] Workout was successfully added!"
+                    )
+                } else {
                     result.success(false)
                     Log.w(
                         "FLUTTER_HEALTH::ERROR",
                         "[Health Connect] Workout type not supported"
                     )
-                    return
                 }
-                val workoutType = workoutTypeMap[type]!!
-                val title = call.argument<String>("title") ?: type
-
-                val list = mutableListOf<Record>()
-                list.add(
-                    ExerciseSessionRecord(
-                        startTime = startTime,
-                        startZoneOffset = null,
-                        endTime = endTime,
-                        endZoneOffset = null,
-                        exerciseType = workoutType,
-                        title = title,
-                            metadata = Metadata(
-                                recordingMethod = recordingMethod,
-                            ),
-                    ),
-                )
-                if (totalDistance != null) {
-                    list.add(
-                        DistanceRecord(
-                            startTime = startTime,
-                            startZoneOffset = null,
-                            endTime = endTime,
-                            endZoneOffset = null,
-                            distance =
-                            Length.meters(
-                                totalDistance.toDouble()
-                            ),
-                            metadata = Metadata(
-                                recordingMethod = recordingMethod,
-                            ),
-                        ),
-                    )
-                }
-                if (totalEnergyBurned != null) {
-                    list.add(
-                        TotalCaloriesBurnedRecord(
-                            startTime = startTime,
-                            startZoneOffset = null,
-                            endTime = endTime,
-                            endZoneOffset = null,
-                            energy =
-                            Energy.kilocalories(
-                                totalEnergyBurned
-                                    .toDouble()
-                            ),
-                            metadata = Metadata(
-                                recordingMethod = recordingMethod,
-                            ),
-                        ),
-                    )
-                }
-                healthConnectClient.insertRecords(
-                    list,
-                )
-                result.success(true)
-                Log.i(
-                    "FLUTTER_HEALTH::SUCCESS",
-                    "[Health Connect] Workout was successfully added!"
-                )
             } catch (e: Exception) {
                 Log.w("FLUTTER_HEALTH::ERROR", "HealthConnect quota exceeded while writing workout data")
                 Log.w("FLUTTER_HEALTH::ERROR", "Error details: ${e.message}")
@@ -2108,7 +2123,7 @@ class HealthPlugin(private var channel: MethodChannel? = null) :
 
     /** Save a Blood Pressure measurement with systolic and diastolic values */
     private fun writeBloodPressure(call: MethodCall, result: Result) {
-        scope.launch {
+        CoroutineScope(Dispatchers.Main).launch {
             try {
                 val systolic = call.argument<Double>("systolic")!!
                 val diastolic = call.argument<Double>("diastolic")!!
@@ -2149,27 +2164,27 @@ class HealthPlugin(private var channel: MethodChannel? = null) :
 
     /** Delete records of the given type in the time range */
     private fun deleteData(call: MethodCall, result: Result) {
-        scope.launch {
+        CoroutineScope(Dispatchers.Main).launch {
             try {
                 val type = call.argument<String>("dataTypeKey")!!
                 val startTime = Instant.ofEpochMilli(call.argument<Long>("startTime")!!)
                 val endTime = Instant.ofEpochMilli(call.argument<Long>("endTime")!!)
-                if (!mapToType.containsKey(type)) {
+                if (mapToType.containsKey(type)) {
+                    val classType = mapToType[type]!!
+
+                    healthConnectClient.deleteRecords(
+                        recordType = classType,
+                        timeRangeFilter =
+                        TimeRangeFilter.between(
+                            startTime,
+                            endTime
+                        ),
+                    )
+                    result.success(true)
+                } else {
                     Log.w("FLUTTER_HEALTH::ERROR", "Datatype $type not found in HC")
                     result.success(false)
-                    return
                 }
-                val classType = mapToType[type]!!
-
-                healthConnectClient.deleteRecords(
-                    recordType = classType,
-                    timeRangeFilter =
-                    TimeRangeFilter.between(
-                        startTime,
-                        endTime
-                    ),
-                )
-                result.success(true)
             } catch (e: Exception) {
                 Log.w("FLUTTER_HEALTH::ERROR", "HealthConnect quota exceeded while deleting data")
                 Log.w("FLUTTER_HEALTH::ERROR", "Error details: ${e.message}")
