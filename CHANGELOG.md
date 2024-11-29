@@ -1,3 +1,9 @@
+## 12.0.0
+
+* Added support for custom isolate processing through `HealthIsolateConfig`
+* Allow configuration of threshold for heavy computations
+* Enable usage of existing isolates for better performance and resource management
+
 ## 11.1.0
 
 * Fix of [#1043](https://github.com/cph-cachet/flutter-plugins/issues/1043)

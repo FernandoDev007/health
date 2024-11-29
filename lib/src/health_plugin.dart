@@ -41,6 +41,13 @@ class Health {
   HealthConnectSdkStatus _healthConnectSdkStatus =
       HealthConnectSdkStatus.sdkUnavailable;
 
+  /// Configuration for handling heavy computations in an external isolate.
+  ///
+  /// This configuration allows the health plugin to use an existing isolate
+  /// for processing data instead of creating new ones for each operation.
+  /// This is particularly useful when the app already maintains a long-running isolate.
+  HealthIsolateConfig? _isolateConfig;
+
   Health._() {
     _registerFromJsonFunctions();
   }
@@ -63,10 +70,11 @@ class Health {
   String get deviceId => _deviceId ?? 'unknown';
 
   /// Configure the health plugin. Must be called before using the plugin.
-  Future<void> configure() async {
+  Future<void> configure({HealthIsolateConfig? isolateConfig}) async {
     _deviceId = Platform.isAndroid
         ? (await _deviceInfo.androidInfo).id
         : (await _deviceInfo.iosInfo).identifierForVendor;
+    _isolateConfig = isolateConfig;
   }
 
   /// Check if a given data type is available on the platform
@@ -859,9 +867,13 @@ class Health {
       dataPoints.addAll(result);
     }
 
-    const int threshold = 100;
+    final int threshold = _isolateConfig?.threshold ?? 100;
     if (dataPoints.length > threshold) {
-      return compute(removeDuplicates, dataPoints);
+      if (_isolateConfig?.hasDuplicatesCallback == true) {
+        return await _isolateConfig!.duplicatesCallback!(dataPoints);
+      }
+
+      return await compute(removeDuplicates, dataPoints);
     }
 
     return removeDuplicates(dataPoints);
@@ -998,10 +1010,15 @@ class Health {
         "dataType": dataType,
         "dataPoints": fetchedDataPoints,
       };
-      const thresHold = 100;
+
+      final int threshold = _isolateConfig?.threshold ?? 100;
       // If the no. of data points are larger than the threshold,
       // call the compute method to spawn an Isolate to do the parsing in a separate thread.
-      if (fetchedDataPoints.length > thresHold) {
+      if (fetchedDataPoints.length > threshold) {
+        if (_isolateConfig?.hasParseCallback == true) {
+          return await _isolateConfig!.parseCallback!(msg);
+        }
+
         return compute(_parse, msg);
       }
       return _parse(msg);
