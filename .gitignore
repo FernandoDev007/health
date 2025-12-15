@@ -41,6 +41,18 @@ pubspec.lock
 **/android/local.properties
 **/android/**/GeneratedPluginRegistrant.java
 
+**/example/android/**/gradle-wrapper.jar
+**/example/android/.gradle
+**/example/android/.cxx
+**/example/android/**/.cxx
+**/example/.dart_tool/
+**/example/android/app/.cxx
+**/example/android/captures/
+**/example/android/gradlew
+**/example/android/gradlew.bat
+**/example/android/local.properties
+**/example/android/**/GeneratedPluginRegistrant.java
+
 # iOS/XCode related
 **/ios/**/*.mode1v3
 **/ios/**/*.mode2v3

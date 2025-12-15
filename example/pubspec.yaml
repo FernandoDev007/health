@@ -11,10 +11,11 @@ dependencies:
   flutter:
     sdk: flutter
   cupertino_icons: ^1.0.2
-  permission_handler: ^10.2.0
+  permission_handler: ^11.4.0
   carp_serializable: ^2.0.0 # polymorphic json serialization
   health:
     path: ../
+  provider: ^6.1.2
 
 dev_dependencies:
   flutter_test:
