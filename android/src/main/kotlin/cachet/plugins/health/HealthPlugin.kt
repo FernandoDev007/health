@@ -11,7 +11,9 @@ import androidx.activity.result.ActivityResultLauncher
 import androidx.annotation.NonNull
 import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.PermissionController
+import androidx.health.connect.client.features.HealthConnectFeatures
 import androidx.health.connect.client.permission.HealthPermission
+import androidx.health.connect.client.permission.HealthPermission.Companion.PERMISSION_READ_HEALTH_DATA_IN_BACKGROUND
 import androidx.health.connect.client.records.*
 import androidx.health.connect.client.records.MealType.MEAL_TYPE_BREAKFAST
 import androidx.health.connect.client.records.MealType.MEAL_TYPE_DINNER
@@ -170,6 +172,9 @@ class HealthPlugin(private var channel: MethodChannel? = null) :
                 "writeBloodOxygen" -> writeBloodOxygen(call, result)
                 "writeMenstruationFlow" -> writeMenstruationFlow(call, result)
                 "writeMeal" -> writeMeal(call, result)
+                "isHealthDataInBackgroundAvailable" -> isHealthDataInBackgroundAvailable(call, result)
+                "isHealthDataInBackgroundAuthorized" -> isHealthDataInBackgroundAuthorized(call, result)
+                "requestHealthDataInBackgroundAuthorization" -> requestHealthDataInBackgroundAuthorization(call, result)
                 else -> result.notImplemented()
             }
         } catch (e: Exception) {
@@ -2460,4 +2465,50 @@ class HealthPlugin(private var channel: MethodChannel? = null) :
             "YOGA" to ExerciseSessionRecord.EXERCISE_TYPE_YOGA,
             "OTHER" to ExerciseSessionRecord.EXERCISE_TYPE_OTHER_WORKOUT,
         )
+
+    private fun isHealthDataInBackgroundAvailable(call: MethodCall, result: Result) {
+        scope.launch {
+            try {
+                result.success(
+                    healthConnectClient.features.getFeatureStatus(
+                        HealthConnectFeatures.FEATURE_READ_HEALTH_DATA_IN_BACKGROUND
+                    ) == HealthConnectFeatures.FEATURE_STATUS_AVAILABLE
+                )
+            } catch (e: Exception) {
+                Log.w("FLUTTER_HEALTH::ERROR", "Error checking background data availability")
+                Log.w("FLUTTER_HEALTH::ERROR", "Error details: ${e.message}")
+                result.success(false)
+            }
+        }
+    }
+
+    private fun isHealthDataInBackgroundAuthorized(call: MethodCall, result: Result) {
+        scope.launch {
+            try {
+                result.success(
+                    healthConnectClient
+                        .permissionController
+                        .getGrantedPermissions()
+                        .containsAll(listOf(PERMISSION_READ_HEALTH_DATA_IN_BACKGROUND))
+                )
+            } catch (e: Exception) {
+                Log.w("FLUTTER_HEALTH::ERROR", "Error checking background data authorization")
+                Log.w("FLUTTER_HEALTH::ERROR", "Error details: ${e.message}")
+                result.success(false)
+            }
+        }
+    }
+
+    private fun requestHealthDataInBackgroundAuthorization(call: MethodCall, result: Result) {
+        if (context == null || healthConnectRequestPermissionsLauncher == null) {
+            result.success(false)
+            Log.i("FLUTTER_HEALTH", "Permission launcher not found")
+            return
+        }
+
+        mResult = result
+        healthConnectRequestPermissionsLauncher!!.launch(
+            setOf(PERMISSION_READ_HEALTH_DATA_IN_BACKGROUND)
+        )
+    }
 }

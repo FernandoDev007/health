@@ -1,3 +1,13 @@
+## 13.0.0
+
+* **Android**: Add support for `PERMISSION_READ_HEALTH_DATA_IN_BACKGROUND` (Health Connect background data access)
+  * New method `isHealthDataInBackgroundAvailable()` — checks if the background read feature is available on the device
+  * New method `isHealthDataInBackgroundAuthorized()` — checks if the background read permission has been granted
+  * New method `requestHealthDataInBackgroundAuthorization()` — launches the system permission dialog for background data access
+  * Added `android.permission.health.READ_HEALTH_DATA_IN_BACKGROUND` to the example app `AndroidManifest.xml`
+  * Added Kotlin imports: `HealthConnectFeatures`, `PERMISSION_READ_HEALTH_DATA_IN_BACKGROUND`
+* **Fix**: Removed unreachable duplicate `SLEEP_ASLEEP` case in `_alignValue` that was silently overriding the correct value
+
 ## 12.0.0
 
 * Added support for custom isolate processing through `HealthIsolateConfig`
